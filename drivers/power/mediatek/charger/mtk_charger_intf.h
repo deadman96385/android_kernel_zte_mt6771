@@ -44,6 +44,12 @@ struct charger_manager;
 
 #define MAX_CHARGING_TIME (12 * 60 * 60) /* 12 hours */
 
+#ifdef CONFIG_CHARGER_PMIC_VOTER
+#define DEFAULT_TOPOFF_CURRENT_UA 150000 /* 150mA */
+#define DEFAULT_RECHARGE_VOLTAGE_UV 100000 /* 100mV */
+#endif
+
+
 #define CHRLOG_ERROR_LEVEL   1
 #define CHRLOG_DEBUG_LEVEL   2
 
@@ -156,6 +162,7 @@ struct sw_jeita_data {
 	int sm;
 	int pre_sm;
 	int cv;
+	int chg_current;
 	bool charging;
 	bool error_recovery_flag;
 };
@@ -202,6 +209,15 @@ struct charger_custom_data {
 	int jeita_temp_t1_to_t2_cv_voltage;
 	int jeita_temp_t0_to_t1_cv_voltage;
 	int jeita_temp_below_t0_cv_voltage;
+
+	int jeita_temp_above_t4_chg_current;
+	int jeita_temp_t3_to_t4_chg_current;
+	int jeita_temp_t2_to_t3_chg_current;
+	int jeita_temp_t2_to_t3_chg_current_1;
+	int jeita_temp_t1_to_t2_chg_current;
+	int jeita_temp_t0_to_t1_chg_current;
+	int jeita_temp_below_t0_chg_current;
+
 	int temp_t4_threshold;
 	int temp_t4_thres_minus_x_degree;
 	int temp_t3_threshold;
@@ -295,6 +311,9 @@ struct charger_custom_data {
 	bool power_path_support;
 
 	int max_charging_time; /* second */
+
+	int topoff_current; /* uA */
+	int recharge_voltage; /* uV */
 };
 
 struct charger_data {
@@ -307,6 +326,7 @@ struct charger_data {
 	int input_current_limit_by_aicl;
 	int junction_temp_min;
 	int junction_temp_max;
+	int policy_input_current_limit;
 };
 
 struct charger_manager {
@@ -414,6 +434,10 @@ struct charger_manager {
 
 	/* kpoc */
 	atomic_t enable_kpoc_shdn;
+
+	struct mutex zte_update_lock;
+	struct wakeup_source *zte_usb_valid_wake_source;
+	struct delayed_work update_heartbeat_work;
 };
 
 /* charger related module interface */
@@ -442,7 +466,13 @@ extern unsigned int battery_get_bat_soc(void);
 extern signed int battery_meter_get_battery_temperature(void);
 extern bool battery_get_bat_current_sign(void);
 extern signed int battery_get_bat_uisoc(void);
+extern uint get_bat_status(void);
 extern int get_ui_soc(void);
+extern void mtk_charger_notify_battery_full(void);
+extern void mtk_charger_notify_battery_health_status(void);
+extern void zte_power_supply_changed(void);
+extern bool charger_ic_notify_eoc;
+extern int batt_full_design_capacity;
 
 /* procfs */
 #define PROC_FOPS_RW(name)							\

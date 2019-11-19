@@ -1302,6 +1302,22 @@ static int __rt9465_set_cv(struct rt9465_info *info, u32 uV)
 		reg_cv << RT9465_SHIFT_BAT_VOREG, RT9465_MASK_BAT_VOREG);
 }
 
+static int rt9465_get_cv(struct rt9465_info *info, u32 *cv)
+{
+	int ret = 0;
+	u8 reg_cv = 0;
+
+	ret = rt9465_i2c_read_byte(info, RT9465_REG_CHG_CTRL3);
+	if (ret < 0)
+		return ret;
+
+	reg_cv = ((ret & RT9465_MASK_BAT_VOREG) >> RT9465_SHIFT_BAT_VOREG) & 0xFF;
+	*cv = rt9465_closest_value(RT9465_BAT_VOREG_MIN, RT9465_BAT_VOREG_MAX,
+		RT9465_BAT_VOREG_STEP, reg_cv);
+
+	return ret;
+}
+
 static int __rt9465_enable_safety_timer(struct rt9465_info *info, bool en)
 {
 	dev_info(info->dev, "%s: en = %d\n", __func__, en);
@@ -1429,7 +1445,7 @@ static int rt9465_dump_register(struct charger_device *chg_dev)
 {
 	int i = 0, ret = 0;
 	int ichg = 0;
-	u32 mivr = 0, ieoc = 0;
+	u32 mivr = 0, ieoc = 0, cv = 0;
 	bool chg_enable = 0;
 	enum rt9465_charging_status chg_status = RT9465_CHG_STATUS_READY;
 	struct rt9465_info *info = dev_get_drvdata(&chg_dev->dev);
@@ -1439,6 +1455,7 @@ static int rt9465_dump_register(struct charger_device *chg_dev)
 	ret = rt9465_is_charging_enabled(chg_dev, &chg_enable);
 	ret = rt9465_get_ieoc(info, &ieoc);
 	ret = rt9465_get_charging_status(info, &chg_status);
+	ret = rt9465_get_cv(info, &cv);
 
 	/* Dump register if in fault status */
 	if (chg_status == RT9465_CHG_STATUS_FAULT) {
@@ -1446,8 +1463,8 @@ static int rt9465_dump_register(struct charger_device *chg_dev)
 			ret = rt9465_i2c_read_byte(info, rt9465_reg_addr[i]);
 	}
 
-	dev_info(info->dev, "%s: ICHG = %dmA, MIVR = %dmV, IEOC = %dmA\n",
-		__func__, ichg / 1000, mivr / 1000, ieoc / 1000);
+	dev_info(info->dev, "%s: CV = %dmv, ICHG = %dmA, MIVR = %dmV, IEOC = %dmA\n",
+		__func__, cv / 1000, ichg / 1000, mivr / 1000, ieoc / 1000);
 
 	dev_info(info->dev, "%s: CHG_EN = %d, CHG_STATUS = %s\n",
 		__func__, chg_enable, rt9465_chg_status_name[chg_status]);

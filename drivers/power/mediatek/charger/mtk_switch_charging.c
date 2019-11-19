@@ -213,10 +213,8 @@ static void swchg_select_charging_current_limit(struct charger_manager *info)
 		if (IS_ENABLED(CONFIG_USBIF_COMPLIANCE) && info->chr_type == STANDARD_HOST)
 			pr_debug("USBIF & STAND_HOST skip current check\n");
 		else {
-			if (info->sw_jeita.sm == TEMP_T0_TO_T1) {
-				pdata->input_current_limit = 500000;
-				pdata->charging_current_limit = 350000;
-			}
+			if (info->sw_jeita.chg_current < pdata->charging_current_limit)
+				pdata->charging_current_limit = info->sw_jeita.chg_current;
 		}
 	}
 
@@ -227,6 +225,10 @@ static void swchg_select_charging_current_limit(struct charger_manager *info)
 	if (pdata->thermal_input_current_limit != -1)
 		if (pdata->thermal_input_current_limit < pdata->input_current_limit)
 			pdata->input_current_limit = pdata->thermal_input_current_limit;
+
+	if (pdata->policy_input_current_limit != -1)
+		if (pdata->policy_input_current_limit < pdata->input_current_limit)
+			pdata->input_current_limit = pdata->policy_input_current_limit;
 
 	if (mtk_pe40_get_is_connect(info)) {
 		if (info->pe4.pe4_input_current_limit != -1 &&
@@ -242,9 +244,20 @@ static void swchg_select_charging_current_limit(struct charger_manager *info)
 
 	if (pdata->input_current_limit_by_aicl != -1 && !mtk_is_pe30_running(info) &&
 		!mtk_pe20_get_is_connect(info) && !mtk_pe_get_is_connect(info) &&
-		!mtk_is_TA_support_pd_pps(info))
+		!mtk_is_TA_support_pd_pps(info)) {
+		if (pdata->input_current_limit_by_aicl < 500000) {
+			chr_err("AICL limit is over low, use 500mA default value!\n");
+			pdata->input_current_limit_by_aicl = 500000;
+		}
+
+		if ((pdata->input_current_limit_by_aicl >= 1500000) && (pdata->input_current_limit_by_aicl < 1600000)) {
+			chr_err("forcely set AICL limit to 1.6A!\n");
+			pdata->input_current_limit_by_aicl = 1600000;
+		}
+
 		if (pdata->input_current_limit_by_aicl < pdata->input_current_limit)
 			pdata->input_current_limit = pdata->input_current_limit_by_aicl;
+	}
 done:
 	ret = charger_dev_get_min_charging_current(info->chg1_dev, &ichg1_min);
 	if (ret != -ENOTSUPP && pdata->charging_current_limit < ichg1_min)
@@ -254,10 +267,11 @@ done:
 	if (ret != -ENOTSUPP && pdata->input_current_limit < aicr1_min)
 		pdata->input_current_limit = 0;
 
-	chr_err("force:%d thermal:%d,%d pe4:%d,%d,%d setting:%d %d type:%d usb_unlimited:%d usbif:%d usbsm:%d aicl:%d\n",
+	chr_err("force:%d thermal:%d,%d policy:%d pe4:%d,%d,%d setting:%d %d type:%d usb_unlimited:%d usbif:%d usbsm:%d aicl:%d\n",
 		_uA_to_mA(pdata->force_charging_current),
 		_uA_to_mA(pdata->thermal_input_current_limit),
 		_uA_to_mA(pdata->thermal_charging_current_limit),
+		_uA_to_mA(pdata->policy_input_current_limit),
 		_uA_to_mA(info->pe4.pe4_input_current_limit),
 		_uA_to_mA(info->pe4.pe4_input_current_limit_setting),
 		_uA_to_mA(info->pe4.input_current_limit),
@@ -271,7 +285,7 @@ done:
 	charger_dev_set_charging_current(info->chg1_dev, pdata->charging_current_limit);
 
 	/* If AICR < 300mA, stop PE+/PE+20 */
-	if (pdata->input_current_limit < 300000) {
+	if (pdata->input_current_limit < 300000 || info->sw_jeita.sm != TEMP_T2_TO_T3) {
 		if (mtk_pe20_get_is_enable(info)) {
 			mtk_pe20_set_is_enable(info, false);
 			if (mtk_pe20_get_is_connect(info))
@@ -350,7 +364,10 @@ static int mtk_switch_charging_plug_in(struct charger_manager *info)
 	swchgalg->disable_charging = false;
 	get_monotonic_boottime(&swchgalg->charging_begin_time);
 	charger_manager_notifier(info, CHARGER_NOTIFY_START_CHARGING);
+	mtk_pe_set_is_plug_in(info);
 
+	if (info->enable_type_c == false)
+		info->polling_interval = 1;
 	return 0;
 }
 
@@ -366,6 +383,7 @@ static int mtk_switch_charging_plug_out(struct charger_manager *info)
 	mtk_pdc_plugout(info);
 	mtk_pe40_plugout_reset(info);
 	charger_manager_notifier(info, CHARGER_NOTIFY_STOP_CHARGING);
+	mtk_pe_set_is_plug_out(info);
 	return 0;
 }
 
@@ -432,6 +450,7 @@ static int mtk_switch_chr_cc(struct charger_manager *info)
 	struct switch_charging_alg_data *swchgalg = info->algorithm_data;
 	struct timespec time_now, charging_time;
 
+	info->polling_interval = CHARGING_INTERVAL;
 	/* check bif */
 	if (IS_ENABLED(CONFIG_MTK_BIF_SUPPORT)) {
 		if (pmic_is_bif_exist() != 1) {
@@ -465,8 +484,8 @@ static int mtk_switch_chr_cc(struct charger_manager *info)
 	/* If it is not disabled by throttling,
 	 * enable PE+/PE+20, if it is disabled
 	 */
-	if (info->chg1_data.thermal_input_current_limit != -1 &&
-		info->chg1_data.thermal_input_current_limit < 300)
+	if ((info->chg1_data.thermal_input_current_limit != -1 &&
+		info->chg1_data.thermal_input_current_limit < 300) || info->sw_jeita.sm != TEMP_T2_TO_T3)
 		return 0;
 
 	if (!mtk_pe20_get_is_enable(info)) {
@@ -485,6 +504,7 @@ int mtk_switch_chr_err(struct charger_manager *info)
 {
 	struct switch_charging_alg_data *swchgalg = info->algorithm_data;
 
+	info->polling_interval = CHARGING_INTERVAL;
 	if (info->enable_sw_jeita) {
 		if ((info->sw_jeita.sm == TEMP_BELOW_T0) || (info->sw_jeita.sm == TEMP_ABOVE_T4))
 			info->sw_jeita.error_recovery_flag = false;

@@ -21,6 +21,8 @@ subdir-ccflags-y += -Werror -I$(srctree)/drivers/misc/mediatek/pmic/include
 ifeq ($(CONFIG_MTK_GAUGE_VERSION),30)
 	obj-$(CONFIG_MTK_SMART_BATTERY) += battery/
 	obj-$(CONFIG_MTK_SMART_BATTERY) += charger/
+	obj-$(CONFIG_CHARGER_PMIC_VOTER) += pmic-voter.o
+	obj-$(CONFIG_CHARGE_ARBITRATE_SERVICE)	+= charge_arbitrate_service.o
 else ifeq ($(CONFIG_MTK_GAUGE_VERSION),20)
 	obj-$(CONFIG_MTK_SMART_BATTERY) += battery_meter_fg_20.o battery_common_fg_20.o
 	obj-$(CONFIG_MTK_PUMP_EXPRESS_PLUS_SUPPORT) += mtk_pep_intf.o
@@ -44,3 +46,6 @@ else
 		obj-$(CONFIG_MTK_SMART_BATTERY) += linear_charging.o
 	endif
 endif
+
+obj-y += zte_misc.o charger_policy_service.o
+obj-$(CONFIG_BATTERY_CAPACITY_LEARNING)	+= battery_capacity_learning.o

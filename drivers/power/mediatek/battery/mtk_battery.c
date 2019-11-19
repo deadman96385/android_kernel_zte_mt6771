@@ -93,6 +93,7 @@
 #define Set_BAT_DISABLE_NAFG _IOW('k', 14, int)
 #define Set_CARTUNE_TO_KERNEL _IOW('k', 15, int)
 /* add for meta tool----------------------------------------- */
+#define BATTERY_TMP_OVERHEAT_UPDATE_THRESHOLD 55
 
 static struct class *adc_cali_class;
 static int adc_cali_major;
@@ -109,6 +110,9 @@ static int adc_cali_cal[1] = { 0 };
 static int battery_in_data[1] = { 0 };
 static int battery_out_data[1] = { 0 };
 static bool g_ADC_Cali;
+extern int enable_to_shutdown;
+extern int batt_full_design_capacity;
+extern int battery_health_status;
 
 static enum power_supply_property battery_props[] = {
 	POWER_SUPPLY_PROP_STATUS,
@@ -121,8 +125,16 @@ static enum power_supply_property battery_props[] = {
 	POWER_SUPPLY_PROP_CURRENT_AVG,
 	POWER_SUPPLY_PROP_VOLTAGE_NOW,
 	POWER_SUPPLY_PROP_CHARGE_FULL,
+	POWER_SUPPLY_PROP_CHARGE_FULL_DESIGN,
 	POWER_SUPPLY_PROP_CHARGE_COUNTER,
 	POWER_SUPPLY_PROP_TEMP,
+	POWER_SUPPLY_PROP_BATTERY_CHARGING_ENABLED,
+	POWER_SUPPLY_PROP_CHARGING_ENABLED,
+	POWER_SUPPLY_PROP_SET_SHIP_MODE,
+	POWER_SUPPLY_PROP_CURRENT_COUNTER_ZTE,
+	POWER_SUPPLY_PROP_RESISTANCE_ID,
+	POWER_SUPPLY_PROP_CAPACITY_RAW_ZTE,
+	POWER_SUPPLY_PROP_VOLTAGE_MAX,
 };
 
 /* weak function */
@@ -205,8 +217,6 @@ bool is_fg_disabled(void)
 {
 	return gm.disableGM30;
 }
-
-
 
 int register_battery_notifier(struct notifier_block *nb)
 {
@@ -336,6 +346,76 @@ void battery_update_psd(struct battery_data *bat_data)
 	bat_data->BAT_batt_temp = battery_get_bat_temperature();
 }
 
+static int power_supply_get_prop_from_charger(enum power_supply_property psp,
+	union power_supply_propval *val)
+{
+	struct power_supply *psy = NULL;
+	int rc = 0;
+
+	psy = power_supply_get_by_name("charger");
+	if (!psy) {
+		pr_err("get charger psy failed\n");
+		goto failed_loop;
+	}
+
+	rc = power_supply_get_property(psy,
+				psp, val);
+	if (rc < 0) {
+		pr_err("Failed to get property:%d rc=%d\n", psp, rc);
+	}
+
+	power_supply_put(psy);
+	return rc;
+failed_loop:
+	return -EINVAL;
+}
+
+static int power_supply_set_prop_to_charger(enum power_supply_property psp,
+	const union power_supply_propval *val)
+{
+	struct power_supply *psy = NULL;
+	int rc = 0;
+
+	psy = power_supply_get_by_name("charger");
+	if (!psy) {
+		pr_err("get charger psy failed\n");
+		goto failed_loop;
+	}
+
+	rc = power_supply_set_property(psy,
+				psp, val);
+	if (rc < 0) {
+		pr_err("Failed to set property:%d rc=%d\n", psp, rc);
+	}
+	power_supply_put(psy);
+
+	return rc;
+failed_loop:
+	return -EINVAL;
+}
+
+uint get_bat_status(void)
+{
+	return battery_main.BAT_STATUS;
+}
+
+void zte_power_supply_changed(void)
+{
+	if (battery_main.psy)
+		power_supply_changed(battery_main.psy);
+}
+
+void mtk_charger_notify_battery_health_status(void)
+{
+	static int pre_battery_health_status = POWER_SUPPLY_HEALTH_GOOD;
+
+	if (battery_health_status != pre_battery_health_status) {
+		bm_err("update battery health status\n");
+		pre_battery_health_status = battery_health_status;
+		zte_power_supply_changed();
+	}
+}
+
 static int battery_get_property(struct power_supply *psy,
 	enum power_supply_property psp,
 	union power_supply_propval *val)
@@ -350,8 +430,16 @@ static int battery_get_property(struct power_supply *psy,
 	switch (psp) {
 	case POWER_SUPPLY_PROP_STATUS:
 		val->intval = data->BAT_STATUS;
+
+		if ((val->intval != POWER_SUPPLY_STATUS_FULL) &&
+				(val->intval != POWER_SUPPLY_STATUS_CHARGING) &&
+				(gm.car_backup != 0)) {
+			gm.car_backup = 0;
+		}
 		break;
 	case POWER_SUPPLY_PROP_HEALTH:
+		data->BAT_HEALTH = battery_health_status;
+		pr_info("battery health status is %d\n", battery_health_status);
 		val->intval = data->BAT_HEALTH;/* do not change before*/
 		break;
 	case POWER_SUPPLY_PROP_PRESENT:
@@ -368,26 +456,44 @@ static int battery_get_property(struct power_supply *psy,
 			val->intval = gm.fixed_uisoc;
 		else
 			val->intval = data->BAT_CAPACITY;
+		if (!enable_to_shutdown) {
+			if (data->BAT_CAPACITY == 0) {
+				val->intval = 1;
+				pr_info("force report soc 1\n");
+			}
+		}
+		break;
+	case POWER_SUPPLY_PROP_CAPACITY_RAW_ZTE:
+		val->intval = gm.soc;
 		break;
 	case POWER_SUPPLY_PROP_CURRENT_NOW:
 		b_ischarging = gauge_get_current(&fgcurrent);
 		if (b_ischarging == false)
 			fgcurrent = 0 - fgcurrent;
 
-		val->intval = fgcurrent * 100;
+		val->intval = fgcurrent * (-100);
 		break;
 	case POWER_SUPPLY_PROP_CURRENT_AVG:
-		val->intval = battery_get_bat_avg_current() * 100;
+		val->intval = battery_get_bat_avg_current() * (-100);
+		break;
+	case POWER_SUPPLY_PROP_CHARGE_FULL_DESIGN:
+		val->intval = batt_full_design_capacity * 1000;
 		break;
 	case POWER_SUPPLY_PROP_CHARGE_FULL:
-		val->intval =
-			fg_table_cust_data.fg_profile[gm.battery_id].q_max
-			* 1000;
+		val->intval = batt_full_design_capacity * (gm.aging_factor / 10);
 		break;
 	case POWER_SUPPLY_PROP_CHARGE_COUNTER:
 		val->intval = gm.ui_soc *
 			fg_table_cust_data.fg_profile[gm.battery_id].q_max
 			* 1000 / 100;
+		break;
+	case POWER_SUPPLY_PROP_CURRENT_COUNTER_ZTE:
+		/*hw coulomb may be reset to 0 when battery full*/
+		if (gm.car_backup == 0)
+			val->intval = gauge_get_coulomb() * 100;
+		else
+			val->intval = gm.car_backup * 100;
+		pr_info("BCL: coulomb %d, car_backup %d\n", val->intval, gm.car_backup);
 		break;
 	case POWER_SUPPLY_PROP_VOLTAGE_NOW:
 		val->intval = data->BAT_batt_vol * 1000;
@@ -395,7 +501,21 @@ static int battery_get_property(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_TEMP:
 		val->intval = data->BAT_batt_temp * 10;
 		break;
-
+	case POWER_SUPPLY_PROP_BATTERY_CHARGING_ENABLED:
+		power_supply_get_prop_from_charger(POWER_SUPPLY_PROP_BATTERY_CHARGING_ENABLED, val);
+		break;
+	case POWER_SUPPLY_PROP_CHARGING_ENABLED:
+		power_supply_get_prop_from_charger(POWER_SUPPLY_PROP_CHARGING_ENABLED, val);
+		break;
+	case POWER_SUPPLY_PROP_SET_SHIP_MODE:
+		power_supply_get_prop_from_charger(POWER_SUPPLY_PROP_SET_SHIP_MODE, val);
+		break;
+	case POWER_SUPPLY_PROP_RESISTANCE_ID:
+		val->intval = gm.battery_id;
+		break;
+	case POWER_SUPPLY_PROP_VOLTAGE_MAX:
+		power_supply_get_prop_from_charger(POWER_SUPPLY_PROP_VOLTAGE_MAX, val);
+		break;
 	default:
 		ret = -EINVAL;
 		break;
@@ -403,6 +523,60 @@ static int battery_get_property(struct power_supply *psy,
 
 	return ret;
 }
+
+static int battery_set_property(struct power_supply *psy,
+	enum power_supply_property psp, const union power_supply_propval *val)
+{
+	struct battery_data *data =
+		container_of(psy->desc, struct battery_data, psd);
+
+	pr_info("<BRD> %s\n", __func__);
+
+	if (!data) {
+		pr_err("<BRD> %s: no battery data\n", __func__);
+		return -EINVAL;
+	}
+
+	switch (psp) {
+	case POWER_SUPPLY_PROP_STATUS:
+		pr_info("<BRD> %s disable charge: %d.\n", __func__, val->intval);
+		data->BAT_STATUS = val->intval;
+		break;
+	case POWER_SUPPLY_PROP_BATTERY_CHARGING_ENABLED:
+		power_supply_set_prop_to_charger(POWER_SUPPLY_PROP_BATTERY_CHARGING_ENABLED, val);
+		break;
+	case POWER_SUPPLY_PROP_CHARGING_ENABLED:
+		power_supply_set_prop_to_charger(POWER_SUPPLY_PROP_CHARGING_ENABLED, val);
+		break;
+	case POWER_SUPPLY_PROP_SET_SHIP_MODE:
+		power_supply_set_prop_to_charger(POWER_SUPPLY_PROP_SET_SHIP_MODE, val);
+		break;
+	default:
+		pr_info("<BRD> %s default property\n", __func__);
+		return -EINVAL;
+	}
+
+	power_supply_changed(data->psy);
+
+	return 0;
+}
+
+static int battery_prop_is_writeable(struct power_supply *psy,
+		enum power_supply_property psp)
+{
+	switch (psp) {
+	case POWER_SUPPLY_PROP_STATUS:
+	case POWER_SUPPLY_PROP_BATTERY_CHARGING_ENABLED:
+	case POWER_SUPPLY_PROP_CHARGING_ENABLED:
+	case POWER_SUPPLY_PROP_SET_SHIP_MODE:
+		return 1;
+	default:
+		break;
+	}
+
+	return 0;
+}
+
 
 /* battery_data initialization */
 struct battery_data battery_main = {
@@ -412,6 +586,8 @@ struct battery_data battery_main = {
 		.properties = battery_props,
 		.num_properties = ARRAY_SIZE(battery_props),
 		.get_property = battery_get_property,
+		.set_property = battery_set_property,
+		.property_is_writeable = battery_prop_is_writeable,
 		},
 
 	.BAT_STATUS = POWER_SUPPLY_STATUS_DISCHARGING,
@@ -440,7 +616,7 @@ void battery_update(struct battery_data *bat_data)
 
 	battery_update_psd(&battery_main);
 	bat_data->BAT_TECHNOLOGY = POWER_SUPPLY_TECHNOLOGY_LION;
-	bat_data->BAT_HEALTH = POWER_SUPPLY_HEALTH_GOOD;
+	/*bat_data->BAT_HEALTH = POWER_SUPPLY_HEALTH_GOOD;*/
 	bat_data->BAT_PRESENT = 1;
 
 #if defined(CONFIG_MTK_DISABLE_GAUGE)
@@ -935,15 +1111,15 @@ unsigned int TempConverBattThermistor(int temp)
 	int i;
 	unsigned int TBatt_R_Value = 0xffff;
 
-	if (temp >= Fg_Temperature_Table[20].BatteryTemp) {
-		TBatt_R_Value = Fg_Temperature_Table[20].TemperatureR;
+	if (temp >= Fg_Temperature_Table[21].BatteryTemp) {
+		TBatt_R_Value = Fg_Temperature_Table[21].TemperatureR;
 	} else if (temp <= Fg_Temperature_Table[0].BatteryTemp) {
 		TBatt_R_Value = Fg_Temperature_Table[0].TemperatureR;
 	} else {
 		RES1 = Fg_Temperature_Table[0].TemperatureR;
 		TMP1 = Fg_Temperature_Table[0].BatteryTemp;
 
-		for (i = 0; i <= 20; i++) {
+		for (i = 0; i <= 21; i++) {
 			if (temp <= Fg_Temperature_Table[i].BatteryTemp) {
 				RES2 = Fg_Temperature_Table[i].TemperatureR;
 				TMP2 = Fg_Temperature_Table[i].BatteryTemp;
@@ -976,13 +1152,13 @@ int BattThermistorConverTemp(int Res)
 
 	if (Res >= Fg_Temperature_Table[0].TemperatureR) {
 		TBatt_Value = -40;
-	} else if (Res <= Fg_Temperature_Table[20].TemperatureR) {
-		TBatt_Value = 60;
+	} else if (Res <= Fg_Temperature_Table[21].TemperatureR) {
+		TBatt_Value = 65;
 	} else {
 		RES1 = Fg_Temperature_Table[0].TemperatureR;
 		TMP1 = Fg_Temperature_Table[0].BatteryTemp;
 
-		for (i = 0; i <= 20; i++) {
+		for (i = 0; i <= 21; i++) {
 			if (Res >= Fg_Temperature_Table[i].TemperatureR) {
 				RES2 = Fg_Temperature_Table[i].TemperatureR;
 				TMP2 = Fg_Temperature_Table[i].BatteryTemp;
@@ -1267,10 +1443,12 @@ int force_get_tbat_internal(bool update)
 	return bat_temperature_val;
 }
 
+static int ZTE_BAT_TEMP_DIFF = 2;
 int force_get_tbat(bool update)
 {
 	int bat_temperature_val = 0;
 	int counts = 0;
+	static int pre_tmp = 0;
 
 	if (is_fg_disabled()) {
 		bm_debug("[%s] fixed TBAT=25 t\n",
@@ -1302,7 +1480,9 @@ int force_get_tbat(bool update)
 		disable_fg();
 		if (gm.disableGM30 == true)
 			battery_main.BAT_CAPACITY = 50;
-		battery_update(&battery_main);
+		if (battery_main.psy)
+			power_supply_changed(battery_main.psy);
+
 	}
 
 	if (bat_temperature_val <= BATTERY_TMP_TO_DISABLE_NAFG) {
@@ -1324,6 +1504,19 @@ int force_get_tbat(bool update)
 	}
 
 	gm.ntc_disable_nafg = false;
+
+	if (bat_temperature_val > BATTERY_TMP_OVERHEAT_UPDATE_THRESHOLD)
+		ZTE_BAT_TEMP_DIFF = 1;
+	else
+		ZTE_BAT_TEMP_DIFF = 2;
+
+	if (abs(bat_temperature_val - pre_tmp) >= ZTE_BAT_TEMP_DIFF) {
+		bm_err("forcely update battery temperature, temp: %d, %d\n", bat_temperature_val, pre_tmp);
+		pre_tmp = bat_temperature_val;
+		if (battery_main.psy)
+			power_supply_changed(battery_main.psy);
+	}
+
 	return bat_temperature_val;
 #endif
 }
@@ -3003,6 +3196,13 @@ static DEVICE_ATTR(
 	Power_Off_Voltage, 0664,
 	show_Power_Off_Voltage, store_Power_Off_Voltage);
 
+bool charger_ic_notify_eoc = false;
+
+void mtk_charger_notify_battery_full(void)
+{
+	battery_main.BAT_STATUS = POWER_SUPPLY_STATUS_FULL;
+	zte_power_supply_changed();
+}
 
 static int battery_callback(
 	struct notifier_block *nb, unsigned long event, void *v)
@@ -3014,6 +3214,9 @@ static int battery_callback(
 		{
 /* CHARGING FULL */
 			notify_fg_chr_full();
+
+			battery_update(&battery_main);
+			charger_ic_notify_eoc = true;
 		}
 		break;
 	case CHARGER_NOTIFY_START_CHARGING:
@@ -3023,6 +3226,7 @@ static int battery_callback(
 
 			battery_main.BAT_STATUS = POWER_SUPPLY_STATUS_CHARGING;
 			battery_update(&battery_main);
+			charger_ic_notify_eoc = false;
 		}
 		break;
 	case CHARGER_NOTIFY_STOP_CHARGING:
@@ -3032,6 +3236,7 @@ static int battery_callback(
 			battery_main.BAT_STATUS =
 			POWER_SUPPLY_STATUS_DISCHARGING;
 			battery_update(&battery_main);
+			charger_ic_notify_eoc = false;
 		}
 		break;
 	case CHARGER_NOTIFY_ERROR:
@@ -3039,6 +3244,7 @@ static int battery_callback(
 /* charging enter error state */
 		battery_main.BAT_STATUS = POWER_SUPPLY_STATUS_NOT_CHARGING;
 		battery_update(&battery_main);
+		charger_ic_notify_eoc = false;
 		}
 		break;
 	case CHARGER_NOTIFY_NORMAL:
@@ -3046,7 +3252,7 @@ static int battery_callback(
 /* charging leave error state */
 		battery_main.BAT_STATUS = POWER_SUPPLY_STATUS_CHARGING;
 		battery_update(&battery_main);
-
+		charger_ic_notify_eoc = false;
 		}
 		break;
 

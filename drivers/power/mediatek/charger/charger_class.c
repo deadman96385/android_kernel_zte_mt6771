@@ -22,6 +22,34 @@
 #include <linux/slab.h>
 #include <mt-plat/charger_class.h>
 
+#ifdef CONFIG_CHARGER_PMIC_VOTER
+#include <linux/pmic-voter.h>
+#include <linux/power_supply.h>
+
+#define MTK_SETTING_VOTER			"MTK_SETTING_VOTER"
+#define CAS_SETTING_VOTER			"CAS_SETTING_VOTER"
+#define ADB_SETTING_VOTER			"ADB_SETTING_VOTER"
+#define PRIMARY_CHARGER_DEVICE_NMAE			"primary_chg"
+#define SECONDARY_CHARGER_DEVICE_NMAE		"secondary_chg"
+
+
+#define cas_debug(fmt, args...)	pr_info("VOTE: %s(): "fmt, __func__, ## args)
+
+struct charge_votable_struct {
+	/*struct charger_device *chg1_dev;*/
+	struct power_supply	*interface_psy;
+	struct votable		*fcc_votable;
+	struct votable		*fcv_votable;
+	struct votable		*topoff_votable;
+	struct votable		*recharge_soc_votable;
+	struct votable		*recharge_voltage_votable;
+	struct votable		*usb_icl_votable;
+	atomic_t			init_finished;
+};
+
+static struct charge_votable_struct charge_votable_data;
+#endif
+
 static struct class *charger_class;
 
 static ssize_t charger_show_name(struct device *dev,
@@ -108,8 +136,28 @@ EXPORT_SYMBOL(charger_dev_do_event);
 
 int charger_dev_set_charging_current(struct charger_device *charger_dev, u32 uA)
 {
+#ifdef CONFIG_CHARGER_PMIC_VOTER
+	struct charger_device *charger_dev2 = get_charger_by_name(SECONDARY_CHARGER_DEVICE_NMAE);
+
+	/*charger_dev2 is persent, Not doing vote*/
+	if (charger_dev2) {
+		if (charger_dev != NULL && charger_dev->ops != NULL && charger_dev->ops->set_charging_current)
+			return charger_dev->ops->set_charging_current(charger_dev, uA);
+
+		return -ENOTSUPP;
+	}
+
+	/*charger_dev2 is not persent, vote fcc*/
+	if (get_client_vote(charge_votable_data.fcc_votable, MTK_SETTING_VOTER) != uA)
+		vote(charge_votable_data.fcc_votable, MTK_SETTING_VOTER, true, uA);
+	else
+		rerun_election(charge_votable_data.fcc_votable);
+
+	return 0;
+#else
 	if (charger_dev != NULL && charger_dev->ops != NULL && charger_dev->ops->set_charging_current)
 		return charger_dev->ops->set_charging_current(charger_dev, uA);
+#endif
 
 	return -ENOTSUPP;
 }
@@ -117,8 +165,23 @@ EXPORT_SYMBOL(charger_dev_set_charging_current);
 
 int charger_dev_get_charging_current(struct charger_device *charger_dev, u32 *uA)
 {
+#ifdef CONFIG_CHARGER_PMIC_VOTER
+	struct charger_device *charger_dev2 = get_charger_by_name(SECONDARY_CHARGER_DEVICE_NMAE);
+
+	if (charger_dev2) {
+		if (charger_dev != NULL && charger_dev->ops != NULL && charger_dev->ops->get_charging_current)
+			return charger_dev->ops->get_charging_current(charger_dev, uA);
+
+		return -ENOTSUPP;
+	}
+
+	*uA = get_client_vote(charge_votable_data.fcc_votable, MTK_SETTING_VOTER);
+	cas_debug("MTK get fcc %d\n", *uA);
+	return 0;
+#else
 	if (charger_dev != NULL && charger_dev->ops != NULL && charger_dev->ops->get_charging_current)
 		return charger_dev->ops->get_charging_current(charger_dev, uA);
+#endif
 
 	return -ENOTSUPP;
 }
@@ -190,8 +253,18 @@ EXPORT_SYMBOL(charger_dev_get_temperature);
 
 int charger_dev_set_input_current(struct charger_device *charger_dev, u32 uA)
 {
+#ifdef CONFIG_CHARGER_PMIC_VOTER
+	if (!strcmp(dev_name(&charger_dev->dev), PRIMARY_CHARGER_DEVICE_NMAE)) {
+		if (get_client_vote(charge_votable_data.usb_icl_votable, MTK_SETTING_VOTER) != uA)
+			vote(charge_votable_data.usb_icl_votable, MTK_SETTING_VOTER, true, uA);
+		else
+			rerun_election(charge_votable_data.usb_icl_votable);
+	}
+	return 0;
+#else
 	if (charger_dev != NULL && charger_dev->ops != NULL && charger_dev->ops->set_input_current)
 		return charger_dev->ops->set_input_current(charger_dev, uA);
+#endif
 
 	return -ENOTSUPP;
 }
@@ -199,12 +272,36 @@ EXPORT_SYMBOL(charger_dev_set_input_current);
 
 int charger_dev_get_input_current(struct charger_device *charger_dev, u32 *uA)
 {
+#ifdef CONFIG_CHARGER_PMIC_VOTER
+	*uA = get_client_vote(charge_votable_data.usb_icl_votable, MTK_SETTING_VOTER);
+	cas_debug("MTK get icl %d\n", *uA);
+	return 0;
+#else
 	if (charger_dev != NULL && charger_dev->ops != NULL && charger_dev->ops->get_input_current)
 		return charger_dev->ops->get_input_current(charger_dev, uA);
+#endif
 
 	return -ENOTSUPP;
 }
 EXPORT_SYMBOL(charger_dev_get_input_current);
+
+int charger_dev_set_ship_mode(struct charger_device *charger_dev, bool en)
+{
+	if (charger_dev != NULL && charger_dev->ops != NULL && charger_dev->ops->set_ship_mode)
+		return charger_dev->ops->set_ship_mode(charger_dev, en);
+
+	return -ENOTSUPP;
+}
+EXPORT_SYMBOL(charger_dev_set_ship_mode);
+
+int charger_dev_get_ship_mode(struct charger_device *charger_dev, bool *en)
+{
+	if (charger_dev != NULL && charger_dev->ops != NULL && charger_dev->ops->get_ship_mode)
+		return charger_dev->ops->get_ship_mode(charger_dev, en);
+
+	return -ENOTSUPP;
+}
+EXPORT_SYMBOL(charger_dev_get_ship_mode);
 
 int charger_dev_get_min_input_current(struct charger_device *charger_dev, u32 *uA)
 {
@@ -217,8 +314,28 @@ EXPORT_SYMBOL(charger_dev_get_min_input_current);
 
 int charger_dev_set_eoc_current(struct charger_device *charger_dev, u32 uA)
 {
+#ifdef CONFIG_CHARGER_PMIC_VOTER
+	struct charger_device *charger_dev2 = get_charger_by_name(SECONDARY_CHARGER_DEVICE_NMAE);
+
+	/*charger_dev2 is persent, Not doing vote*/
+	if (charger_dev2) {
+		if (charger_dev != NULL && charger_dev->ops != NULL && charger_dev->ops->set_eoc_current)
+			return charger_dev->ops->set_eoc_current(charger_dev, uA);
+
+		return -ENOTSUPP;
+	}
+
+	/*charger_dev2 is not persent, vote topoff*/
+	if (get_client_vote(charge_votable_data.topoff_votable, MTK_SETTING_VOTER) != uA)
+		vote(charge_votable_data.topoff_votable, MTK_SETTING_VOTER, true, uA);
+	else
+		rerun_election(charge_votable_data.topoff_votable);
+
+	return 0;
+#else
 	if (charger_dev != NULL && charger_dev->ops != NULL && charger_dev->ops->set_eoc_current)
 		charger_dev->ops->set_eoc_current(charger_dev, uA);
+#endif
 
 	return -ENOTSUPP;
 }
@@ -226,8 +343,23 @@ EXPORT_SYMBOL(charger_dev_set_eoc_current);
 
 int charger_dev_get_eoc_current(struct charger_device *charger_dev, u32 *uA)
 {
+#ifdef CONFIG_CHARGER_PMIC_VOTER
+	struct charger_device *charger_dev2 = get_charger_by_name(SECONDARY_CHARGER_DEVICE_NMAE);
+
+	if (charger_dev2) {
+		if (charger_dev != NULL && charger_dev->ops != NULL && charger_dev->ops->get_eoc_current)
+			return charger_dev->ops->get_eoc_current(charger_dev, uA);
+
+		return -ENOTSUPP;
+	}
+
+	*uA = get_client_vote(charge_votable_data.topoff_votable, MTK_SETTING_VOTER);
+	cas_debug("MTK get topoff %d\n", *uA);
+	return 0;
+#else
 	if (charger_dev != NULL && charger_dev->ops != NULL && charger_dev->ops->get_eoc_current)
 		return charger_dev->ops->get_eoc_current(charger_dev, uA);
+#endif
 
 	return -ENOTSUPP;
 }
@@ -244,8 +376,18 @@ EXPORT_SYMBOL(charger_dev_kick_wdt);
 
 int charger_dev_set_constant_voltage(struct charger_device *charger_dev, u32 uV)
 {
+#ifdef CONFIG_CHARGER_PMIC_VOTER
+	if (!strcmp(dev_name(&charger_dev->dev), PRIMARY_CHARGER_DEVICE_NMAE)) {
+		if (get_client_vote(charge_votable_data.fcv_votable, MTK_SETTING_VOTER) != uV)
+			vote(charge_votable_data.fcv_votable, MTK_SETTING_VOTER, true, uV);
+		else
+			rerun_election(charge_votable_data.fcv_votable);
+	}
+	return 0;
+#else
 	if (charger_dev != NULL && charger_dev->ops != NULL && charger_dev->ops->set_constant_voltage)
 		return charger_dev->ops->set_constant_voltage(charger_dev, uV);
+#endif
 
 	return -ENOTSUPP;
 }
@@ -253,12 +395,54 @@ EXPORT_SYMBOL(charger_dev_set_constant_voltage);
 
 int charger_dev_get_constant_voltage(struct charger_device *charger_dev, u32 *uV)
 {
+#ifdef CONFIG_CHARGER_PMIC_VOTER
+	*uV = get_effective_result(charge_votable_data.fcv_votable);
+	cas_debug("get fcv %d\n", *uV);
+	return 0;
+#else
 	if (charger_dev != NULL && charger_dev->ops != NULL && charger_dev->ops->get_constant_voltage)
 		return charger_dev->ops->get_constant_voltage(charger_dev, uV);
+#endif
 
 	return -ENOTSUPP;
 }
 EXPORT_SYMBOL(charger_dev_get_constant_voltage);
+
+#ifdef CONFIG_CHARGER_PMIC_VOTER
+int charger_dev_set_recharge_voltage(struct charger_device *charger_dev, u32 uV)
+{
+#ifdef CONFIG_CHARGER_PMIC_VOTER
+	if (!strcmp(dev_name(&charger_dev->dev), PRIMARY_CHARGER_DEVICE_NMAE)) {
+		if (get_client_vote(charge_votable_data.recharge_voltage_votable, MTK_SETTING_VOTER) != uV)
+			vote(charge_votable_data.recharge_voltage_votable, MTK_SETTING_VOTER, true, uV);
+		else
+			rerun_election(charge_votable_data.recharge_voltage_votable);
+	}
+	return 0;
+#else
+	if (charger_dev != NULL && charger_dev->ops != NULL && charger_dev->ops->set_recharge_voltage)
+		return charger_dev->ops->set_recharge_voltage(charger_dev, uV);
+#endif
+
+	return -ENOTSUPP;
+}
+EXPORT_SYMBOL(charger_dev_set_recharge_voltage);
+
+int charger_dev_get_recharge_voltage(struct charger_device *charger_dev, u32 *uV)
+{
+#ifdef CONFIG_CHARGER_PMIC_VOTER
+	*uV = get_client_vote(charge_votable_data.recharge_voltage_votable, MTK_SETTING_VOTER);
+	cas_debug("MTK get recharge voltage %d\n", *uV);
+	return 0;
+#else
+	if (charger_dev != NULL && charger_dev->ops != NULL && charger_dev->ops->get_recharge_voltage)
+		return charger_dev->ops->get_recharge_voltage(charger_dev, uV);
+#endif
+
+	return -ENOTSUPP;
+}
+EXPORT_SYMBOL(charger_dev_get_recharge_voltage);
+#endif
 
 int charger_dev_dump_registers(struct charger_device *charger_dev)
 {
@@ -359,6 +543,17 @@ int charger_dev_send_ta_current_pattern(struct charger_device *charger_dev, bool
 }
 EXPORT_SYMBOL(charger_dev_send_ta_current_pattern);
 
+#ifdef ZTE_PE_PLUS_INCREASE_TA_VCHR
+int charger_dev_send_ta_current_pattern_zte(struct charger_device *charger_dev, bool is_increase)
+{
+	if (charger_dev != NULL && charger_dev->ops != NULL && charger_dev->ops->send_ta_current_pattern_zte)
+		return charger_dev->ops->send_ta_current_pattern_zte(charger_dev, is_increase);
+
+	return -ENOTSUPP;
+}
+EXPORT_SYMBOL(charger_dev_send_ta_current_pattern_zte);
+#endif
+
 int charger_dev_send_ta20_current_pattern(struct charger_device *charger_dev, u32 uV)
 {
 	if (charger_dev != NULL && charger_dev->ops != NULL && charger_dev->ops->send_ta20_current_pattern)
@@ -368,14 +563,14 @@ int charger_dev_send_ta20_current_pattern(struct charger_device *charger_dev, u3
 }
 EXPORT_SYMBOL(charger_dev_send_ta20_current_pattern);
 
-int charger_dev_set_ta20_reset(struct charger_device *charger_dev)
+int charger_dev_reset_ta(struct charger_device *charger_dev)
 {
-	if (charger_dev != NULL && charger_dev->ops != NULL && charger_dev->ops->set_ta20_reset)
-		return charger_dev->ops->set_ta20_reset(charger_dev);
+	if (charger_dev != NULL && charger_dev->ops != NULL && charger_dev->ops->reset_ta)
+		return charger_dev->ops->reset_ta(charger_dev);
 
 	return -ENOTSUPP;
 }
-EXPORT_SYMBOL(charger_dev_set_ta20_reset);
+EXPORT_SYMBOL(charger_dev_reset_ta);
 
 int charger_dev_set_pe20_efficiency_table(struct charger_device *charger_dev)
 {
@@ -616,11 +811,248 @@ EXPORT_SYMBOL(get_charger_by_name);
 
 static void __exit charger_class_exit(void)
 {
+#ifdef CONFIG_CHARGER_PMIC_VOTER
+	atomic_set(&charge_votable_data.init_finished, 0);
+	destroy_votable(charge_votable_data.fcc_votable);
+	destroy_votable(charge_votable_data.fcv_votable);
+	destroy_votable(charge_votable_data.topoff_votable);
+	destroy_votable(charge_votable_data.recharge_soc_votable);
+	destroy_votable(charge_votable_data.recharge_voltage_votable);
+	destroy_votable(charge_votable_data.usb_icl_votable);
+#endif
+
 	class_destroy(charger_class);
 }
 
+#ifdef CONFIG_CHARGER_PMIC_VOTER
+static int charger_fcc_vote_callback(struct votable *votable,
+			void *data, int max_fcc_ua, const char *client)
+{
+	/*struct charge_votable_struct *charge_votable_data = data;*/
+	struct charger_device *charger_dev1 = get_charger_by_name(PRIMARY_CHARGER_DEVICE_NMAE);
+	struct charger_device *charger_dev2 = get_charger_by_name(SECONDARY_CHARGER_DEVICE_NMAE);
+
+	if (charger_dev2) {
+		cas_debug("charger_dev2 present, return\n");
+		return 0;
+	}
+
+	cas_debug("client: %s max_fcc_ua: %d\n", client, max_fcc_ua);
+
+	if (charger_dev1 != NULL && charger_dev1->ops != NULL && charger_dev1->ops->set_charging_current)
+		charger_dev1->ops->set_charging_current(charger_dev1, max_fcc_ua);
+
+	return 0;
+}
+
+static int charger_fcv_vote_callback(struct votable *votable,
+			void *data, int max_fcv_uv, const char *client)
+{
+	struct charger_device *charger_dev1 = get_charger_by_name(PRIMARY_CHARGER_DEVICE_NMAE);
+	struct charger_device *charger_dev2 = get_charger_by_name(SECONDARY_CHARGER_DEVICE_NMAE);
+
+	cas_debug("client: %s max_fcv_uv: %d\n", client, max_fcv_uv);
+
+	if (charger_dev1 != NULL && charger_dev1->ops != NULL && charger_dev1->ops->set_constant_voltage)
+		charger_dev1->ops->set_constant_voltage(charger_dev1, max_fcv_uv);
+
+	if (charger_dev2 != NULL && charger_dev2->ops != NULL && charger_dev2->ops->set_constant_voltage)
+		charger_dev2->ops->set_constant_voltage(charger_dev2, max_fcv_uv + 200000);
+
+	return 0;
+}
+
+static int charger_topoff_vote_callback(struct votable *votable,
+			void *data, int min_topoff_ua, const char *client)
+{
+	/*struct charge_votable_struct *charge_votable_data = data;*/
+	struct charger_device *charger_dev1 = get_charger_by_name(PRIMARY_CHARGER_DEVICE_NMAE);
+	struct charger_device *charger_dev2 = get_charger_by_name(SECONDARY_CHARGER_DEVICE_NMAE);
+
+	if (charger_dev2) {
+		cas_debug("charger_dev2 present, return\n");
+		return 0;
+	}
+
+	cas_debug("client: %s min_topoff_ua: %d\n", client, min_topoff_ua);
+
+	if (charger_dev1 != NULL && charger_dev1->ops != NULL && charger_dev1->ops->set_eoc_current)
+		charger_dev1->ops->set_eoc_current(charger_dev1, min_topoff_ua);
+
+	return 0;
+}
+
+static int charger_recharge_soc_vote_callback(struct votable *votable,
+			void *data, int recharge_soc, const char *client)
+{
+	/*struct charger_device *charger_dev = charge_votable_data->chg1_dev;*/
+
+	return 0;
+}
+
+static int charger_recharge_voltage_vote_callback(struct votable *votable,
+			void *data, int recharge_voltage, const char *client)
+{
+	struct charger_device *charger_dev = get_charger_by_name(PRIMARY_CHARGER_DEVICE_NMAE);
+
+	cas_debug("client: %s recharge_voltage: %d\n", client, recharge_voltage);
+
+	if (charger_dev != NULL && charger_dev->ops != NULL && charger_dev->ops->set_recharge_voltage)
+		charger_dev->ops->set_recharge_voltage(charger_dev, recharge_voltage);
+
+	return 0;
+}
+
+static int charger_usb_icl_vote_callback(struct votable *votable,
+			void *data, int max_icl_ua, const char *client)
+{
+	struct charger_device *charger_dev = get_charger_by_name(PRIMARY_CHARGER_DEVICE_NMAE);
+
+	cas_debug("client: %s enable: %d\n", client, max_icl_ua);
+
+	if (charger_dev != NULL && charger_dev->ops != NULL && charger_dev->ops->set_input_current)
+		charger_dev->ops->set_input_current(charger_dev, max_icl_ua);
+
+	return 0;
+}
+
+static int interface_psy_get_property(struct power_supply *psy,
+				enum power_supply_property psp,
+				union power_supply_propval *pval)
+{
+	struct charge_votable_struct *pdata = power_supply_get_drvdata(psy);
+	int rc = 0;
+
+	if (!pdata || !atomic_read(&pdata->init_finished)) {
+		cas_debug("interface Uninitialized!!!\n");
+		return -ENODATA;
+	}
+
+	switch (psp) {
+	case POWER_SUPPLY_PROP_CONSTANT_CHARGE_CURRENT_MAX:
+		pval->intval = get_client_vote(pdata->fcc_votable, CAS_SETTING_VOTER);
+		break;
+	case POWER_SUPPLY_PROP_CONSTANT_CHARGE_VOLTAGE_MAX:
+		pval->intval = get_client_vote(pdata->fcv_votable, CAS_SETTING_VOTER);
+		break;
+	case POWER_SUPPLY_PROP_INPUT_CURRENT_LIMIT:
+		pval->intval = get_client_vote(pdata->usb_icl_votable, CAS_SETTING_VOTER);
+		break;
+	case POWER_SUPPLY_PROP_CHARGE_TERM_CURRENT:
+		pval->intval = get_client_vote(pdata->topoff_votable, CAS_SETTING_VOTER);
+		break;
+	case POWER_SUPPLY_PROP_CALIBRATE:
+		pval->intval = get_client_vote(pdata->recharge_voltage_votable, CAS_SETTING_VOTER);
+		break;
+	default:
+		cas_debug("interface unsupported property %d\n", psp);
+		rc = -EINVAL;
+		break;
+	}
+
+	return rc;
+}
+
+static int interface_psy_set_property(struct power_supply *psy,
+				enum power_supply_property psp,
+				const union power_supply_propval *pval)
+{
+	struct charge_votable_struct *pdata = power_supply_get_drvdata(psy);
+	int rc = 0;
+
+	if (!pdata || !atomic_read(&pdata->init_finished)) {
+		cas_debug("interface Uninitialized!!!\n");
+		return -ENODATA;
+	}
+
+	switch (psp) {
+	case POWER_SUPPLY_PROP_CONSTANT_CHARGE_CURRENT_MAX:
+		if (pval->intval > 0)
+			vote(pdata->fcc_votable, CAS_SETTING_VOTER, true, pval->intval);
+		else
+			vote(pdata->fcc_votable, CAS_SETTING_VOTER, false, 0);
+		break;
+	case POWER_SUPPLY_PROP_CONSTANT_CHARGE_VOLTAGE_MAX:
+		if (pval->intval > 0)
+			vote(pdata->fcv_votable, CAS_SETTING_VOTER, true, pval->intval);
+		else
+			vote(pdata->fcv_votable, CAS_SETTING_VOTER, false, 0);
+		break;
+	case POWER_SUPPLY_PROP_INPUT_CURRENT_LIMIT:
+		vote(pdata->usb_icl_votable, CAS_SETTING_VOTER, pval->intval, 0);
+		break;
+	case POWER_SUPPLY_PROP_CHARGE_TERM_CURRENT:
+		if (pval->intval > 0)
+			vote(pdata->topoff_votable, CAS_SETTING_VOTER, true, pval->intval);
+		else
+			vote(pdata->topoff_votable, CAS_SETTING_VOTER, false, 0);
+		break;
+	case POWER_SUPPLY_PROP_CALIBRATE:
+		if (pval->intval > 0)
+			vote(pdata->recharge_voltage_votable, CAS_SETTING_VOTER, true, pval->intval);
+		else
+			vote(pdata->recharge_voltage_votable, CAS_SETTING_VOTER, false, 0);
+		break;
+	default:
+		cas_debug("interface unsupported property %d\n", psp);
+		rc = -EINVAL;
+		break;
+	}
+
+
+	return rc;
+}
+
+static int interface_property_is_writeable(struct power_supply *psy,
+					enum power_supply_property psp)
+{
+	switch (psp) {
+	case POWER_SUPPLY_PROP_CONSTANT_CHARGE_CURRENT_MAX:
+	case POWER_SUPPLY_PROP_CONSTANT_CHARGE_VOLTAGE_MAX:
+	case POWER_SUPPLY_PROP_INPUT_CURRENT_LIMIT:
+	case POWER_SUPPLY_PROP_CHARGE_TERM_CURRENT:
+	case POWER_SUPPLY_PROP_CALIBRATE:
+		return 1;
+	default:
+		break;
+	}
+
+	return 0;
+}
+
+static void interface_external_power_changed(struct power_supply *psy)
+{
+	cas_debug("power supply changed\n");
+}
+
+static enum power_supply_property interface_psy_props[] = {
+	POWER_SUPPLY_PROP_CONSTANT_CHARGE_CURRENT_MAX,
+	POWER_SUPPLY_PROP_CONSTANT_CHARGE_VOLTAGE_MAX,
+	POWER_SUPPLY_PROP_INPUT_CURRENT_LIMIT,
+	POWER_SUPPLY_PROP_CHARGE_TERM_CURRENT,
+	POWER_SUPPLY_PROP_CHARGING_ENABLED,
+	POWER_SUPPLY_PROP_CALIBRATE,
+};
+
+static const struct power_supply_desc interface_psy_desc = {
+	.name = "interface",
+	.type = POWER_SUPPLY_TYPE_UNKNOWN,
+	.properties = interface_psy_props,
+	.num_properties = ARRAY_SIZE(interface_psy_props),
+	.get_property = interface_psy_get_property,
+	.set_property = interface_psy_set_property,
+	.external_power_changed = interface_external_power_changed,
+	.property_is_writeable = interface_property_is_writeable,
+};
+#endif
+
 static int __init charger_class_init(void)
 {
+#ifdef CONFIG_CHARGER_PMIC_VOTER
+	struct power_supply_config interface_psy_cfg;
+	int rc = 0;
+#endif
+
 	charger_class = class_create(THIS_MODULE, "switching_charger");
 	if (IS_ERR(charger_class)) {
 		pr_err("Unable to create charger class; errno = %ld\n",
@@ -630,7 +1062,96 @@ static int __init charger_class_init(void)
 	charger_class->dev_groups = charger_groups;
 	charger_class->suspend = charger_suspend;
 	charger_class->resume = charger_resume;
+
+#ifdef CONFIG_CHARGER_PMIC_VOTER
+	atomic_set(&charge_votable_data.init_finished, 0);
+
+	/* Register the power supply */
+	interface_psy_cfg.drv_data = &charge_votable_data;
+	interface_psy_cfg.of_node = NULL;
+	interface_psy_cfg.supplied_to = NULL;
+	interface_psy_cfg.num_supplicants = 0;
+	charge_votable_data.interface_psy = power_supply_register(NULL, &interface_psy_desc,
+					&interface_psy_cfg);
+	if (IS_ERR(charge_votable_data.interface_psy)) {
+		rc = PTR_ERR(charge_votable_data.interface_psy);
+		cas_debug("failed to register bcl_psy rc = %ld\n",
+				PTR_ERR(charge_votable_data.interface_psy));
+		goto register_power_supply_failed;
+	}
+
+	charge_votable_data.fcc_votable = create_votable("FCC", VOTE_MIN,
+					charger_fcc_vote_callback,
+					&charge_votable_data);
+	if (IS_ERR(charge_votable_data.fcc_votable)) {
+		rc = PTR_ERR(charge_votable_data.fcc_votable);
+		cas_debug("create %s failed\n", "fcc_votable");
+		goto destroy_votable;
+	}
+
+	charge_votable_data.fcv_votable = create_votable("FCV", VOTE_MIN,
+					charger_fcv_vote_callback,
+					&charge_votable_data);
+	if (IS_ERR(charge_votable_data.fcv_votable)) {
+		rc = PTR_ERR(charge_votable_data.fcv_votable);
+		cas_debug("create %s failed\n", "fcv_votable");
+		goto destroy_votable;
+	}
+
+	charge_votable_data.topoff_votable = create_votable("TOPOFF", VOTE_MAX,
+					charger_topoff_vote_callback,
+					&charge_votable_data);
+	if (IS_ERR(charge_votable_data.topoff_votable)) {
+		rc = PTR_ERR(charge_votable_data.topoff_votable);
+		cas_debug("create %s failed\n", "topoff_votable");
+		goto destroy_votable;
+	}
+
+	charge_votable_data.recharge_soc_votable = create_votable("RECH_SOC", VOTE_MIN,
+					charger_recharge_soc_vote_callback,
+					&charge_votable_data);
+	if (IS_ERR(charge_votable_data.recharge_soc_votable)) {
+		rc = PTR_ERR(charge_votable_data.recharge_soc_votable);
+		cas_debug("create %s failed\n", "recharge_soc_votable");
+		goto destroy_votable;
+	}
+
+	charge_votable_data.recharge_voltage_votable = create_votable("RECH_VOLTAGE", VOTE_MAX,
+					charger_recharge_voltage_vote_callback,
+					&charge_votable_data);
+	if (IS_ERR(charge_votable_data.recharge_voltage_votable)) {
+		rc = PTR_ERR(charge_votable_data.recharge_voltage_votable);
+		cas_debug("create %s failed\n", "recharge_voltage_votable");
+		goto destroy_votable;
+	}
+
+	charge_votable_data.usb_icl_votable = create_votable("USB_ICL", VOTE_MIN,
+					charger_usb_icl_vote_callback,
+					&charge_votable_data);
+	if (IS_ERR(charge_votable_data.usb_icl_votable)) {
+		rc = PTR_ERR(charge_votable_data.usb_icl_votable);
+		cas_debug("create %s failed\n", "usb_icl_votable");
+		goto destroy_votable;
+	}
+
+	atomic_set(&charge_votable_data.init_finished, 1);
+#endif
+
 	return 0;
+
+#ifdef CONFIG_CHARGER_PMIC_VOTER
+destroy_votable:
+	atomic_set(&charge_votable_data.init_finished, 0);
+	destroy_votable(charge_votable_data.fcc_votable);
+	destroy_votable(charge_votable_data.fcv_votable);
+	destroy_votable(charge_votable_data.topoff_votable);
+	destroy_votable(charge_votable_data.recharge_soc_votable);
+	destroy_votable(charge_votable_data.recharge_voltage_votable);
+	destroy_votable(charge_votable_data.usb_icl_votable);
+register_power_supply_failed:
+
+	return rc;
+#endif
 }
 
 subsys_initcall(charger_class_init);

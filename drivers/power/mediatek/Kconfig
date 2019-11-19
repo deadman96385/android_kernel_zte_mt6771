@@ -162,6 +162,15 @@ config MTK_FAN5405_SUPPORT
 	  and config MTK_SWCHR_SUPPORT,
 	  Set to Yes if FAN5405 is used.
 
+config SY6923D1_SUPPORT
+	bool "MediaTek Battery driver for SY6923D1 charger IC"
+	default n
+	help
+	  This is to enable MediaTek supports to SY6923D1.
+	  It depends on config MTK_SMART_BATTERY
+	  and config MTK_SWCHR_SUPPORT,
+	  Set to Yes if SY6923D1 is used.
+
 config MTK_DUAL_INPUT_CHARGER_SUPPORT
 	bool "MTK support dual charger IC charging"
 	default n
@@ -382,3 +391,31 @@ config MTK_DUAL_CHARGER_SUPPORT
           IC is conneceted to PMID pin from the master and VBAT.
 	  Say Yes to enable dual charger support.
 	  Say No to disable dual charger support.
+
+config BATTERY_CAPACITY_LEARNING
+	bool "Battery Capacity Learning driver"
+	default n
+	help
+	  Say Y here to enable the "BATTERY CAPACITY LEARNING" driver
+
+
+config CHARGER_PMIC_VOTER
+	bool "Battery Capacity Learning driver"
+	default n
+	help
+	  Say Y here to enable the "BATTERY CAPACITY LEARNING" driver
+
+config CHARGE_ARBITRATE_SERVICE
+	tristate "Charge Arbitrate Service Driver"
+	depends on CHARGER_PMIC_VOTER
+	help
+	  Say Y here to enable the "Charge Arbitrate Service" driver
+
+config MTK_BATTERY_NTC_VALUE
+	int "Battery NTC VALUE"
+	default 47
+	help
+	  Select Battery NTC Value
+	  10: 10k NTC
+	  47: 47k NTC
+	  100: 100k NTC

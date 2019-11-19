@@ -87,6 +87,7 @@
 /* ============================================================ */
 struct mtk_battery gm;
 
+int batt_full_design_capacity = 0;
 /* ============================================================ */
 /* gauge hal interface */
 /* ============================================================ */
@@ -149,6 +150,7 @@ int gauge_reset_hw(void)
 
 	/* must handle sw_ncar before reset car */
 	fg_sw_bat_cycle_accu();
+	gm.car_backup = gm.bat_cycle_car;
 	gm.bat_cycle_car = 0;
 
 	gauge_coulomb_before_reset();
@@ -372,8 +374,6 @@ void fgauge_get_profile_id(void)
 void fg_custom_init_from_header(void)
 {
 	int i, j;
-
-	fgauge_get_profile_id();
 
 	fg_cust_data.versionID1 = FG_DAEMON_CMD_FROM_USER_NUMBER;
 	fg_cust_data.versionID2 = sizeof(fg_cust_data);
@@ -785,7 +785,69 @@ static void fg_custom_parse_table(const struct device_node *np,
 	}
 }
 
+extern int IMM_GetOneChannelValue_Cali(int Channel, int *voltage);
+int fg_custom_get_bat_id_from_dts(struct device_node *np, int *bat_id_dts)
+{
+	int bat_num = 0;
+	int bat_id_uv_real = 0;
+	int bat_id_uv = 0;
+	int bat_id_uv_max = 0;
+	int bat_id_uv_min = 0;
+	char *bat_type = NULL;
+	struct device_node *node = NULL;
+	int ret = 0;
+	bool get_bset_id = false;
 
+	if (of_property_read_u32(np, "bat_num", &bat_num)) {
+		bm_err("%s, get bat_num failed!\n", __func__);
+		ret = 1;
+	}
+	bm_err("%s, bat_num: %d\n", __func__, bat_num);
+
+	if (IMM_GetOneChannelValue_Cali(BATTERY_ID_CHANNEL_NUM, &bat_id_uv_real)) {
+		bm_err("%s, get bat_id_uv_real failed!\n", __func__);
+		ret = 1;
+	}
+	bm_err("%s, bat_id_uv_real: %duv\n", __func__, bat_id_uv_real);
+
+	if (ret != 0)
+		return ret;
+
+	*bat_id_dts = 0;
+	for_each_child_of_node(np, node) {
+		if (of_property_read_string(node, "bat_type", (const char **)&bat_type)) {
+			*bat_id_dts = 0;
+			break;
+		}
+		bm_err("%s, bat_type: %s\n", __func__, bat_type);
+
+		if (of_property_read_u32(node, "bat_id_uv", &bat_id_uv)) {
+			*bat_id_dts = 0;
+			break;
+		}
+		bm_err("%s, bat_id_uv: %duv\n", __func__, bat_id_uv);
+
+		bat_id_uv_min = (95 * bat_id_uv) / 100;
+		bat_id_uv_max = (105 * bat_id_uv) / 100;
+		if ((bat_id_uv_real > bat_id_uv_min) && (bat_id_uv_real < bat_id_uv_max)) {
+			get_bset_id = true;
+		}
+
+		if (get_bset_id == false)
+			*bat_id_dts = *bat_id_dts + 1;
+	}
+
+	if (get_bset_id) {
+		bm_err("%s, the best battery is bat %d\n", __func__, *bat_id_dts);
+	} else {
+		*bat_id_dts = 0;
+		bm_err("%s, get the best battery failed, use bat %d\n", __func__, *bat_id_dts);
+	}
+	return ret;
+}
+
+
+#define DEFAULT_FULL_DESIGN_CAPACITY 3200
 void fg_custom_init_from_dts(struct platform_device *dev)
 {
 	struct device_node *np = dev->dev.of_node;
@@ -793,6 +855,7 @@ void fg_custom_init_from_dts(struct platform_device *dev)
 	unsigned int val_0, val_1, val_2, val_3;
 	int ret, ret0, ret1, ret2, ret3;
 	int bat_id;
+	int bat_id_dts = -1;
 #ifdef CONFIG_MTK_ADDITIONAL_BATTERY_TABLE
 	unsigned int val_4;
 	int ret4;
@@ -801,6 +864,15 @@ void fg_custom_init_from_dts(struct platform_device *dev)
 	fgauge_get_profile_id();
 	bat_id = gm.battery_id;
 
+	ret = fg_custom_get_bat_id_from_dts(np, &bat_id_dts);
+	if (ret == 0) {
+		bat_id = bat_id_dts;
+		gm.battery_id = bat_id;
+	} else {
+		bm_err("%s: read battery id error: %d\n", __func__, ret);
+	}
+
+	fg_custom_init_from_header();
 	bm_err("%s\n", __func__);
 
 	if (!of_property_read_u32(np, "DISABLE_MTKBATTERY", &val)) {
@@ -819,8 +891,15 @@ void fg_custom_init_from_dts(struct platform_device *dev)
 		bm_err("read RECORD_LOG fail\n");
 	}
 
+	if (!of_property_read_u32(np, "BATT_FULL_DESIGN_CAPACITY", &val)) {
+		batt_full_design_capacity = (int)val;
+		bm_err("Get BATT_FULL_DESIGN_CAPACITY: %d\n", batt_full_design_capacity);
+	} else {
+		batt_full_design_capacity = DEFAULT_FULL_DESIGN_CAPACITY;
+		bm_err("Get BATT_FULL_DESIGN_CAPACITY failed\n");
+	}
 
-	if (ACTIVE_TABLE == 0 && MULTI_BATTERY == 0) {
+	if (ACTIVE_TABLE == 0 && MULTI_BATTERY == 0 && bat_id == 0) {
 		if (!of_property_read_u32(np, "g_FG_PSEUDO100_T0", &val)) {
 			fg_table_cust_data.fg_profile[0].pseudo100 =
 				(int)val * UNIT_TRANS_100;
@@ -1380,7 +1459,6 @@ struct BAT_EC_Struct *get_ec(void)
 	return &gm.Bat_EC_ctrl;
 }
 
-
 /* ============================================================ */
 /* interface with other module */
 /* ============================================================ */
@@ -1466,7 +1544,7 @@ void notify_fg_chr_full(void)
 		gm.chr_full_handler_time = now_time;
 		bm_err("[fg_chr_full_int_handler]\n");
 		wakeup_fg_algo(FG_INTR_CHR_FULL);
-		fg_bat_temp_int_sw_check();
+		fg_int_event(gm.gdev, EVT_INT_CHR_FULL);
 	}
 }
 
@@ -1632,7 +1710,11 @@ void fg_bat_temp_int_sw_check(void)
 	else if (tmp <= gm.fg_bat_tmp_lt)
 		fg_bat_sw_temp_int_l_handler();
 }
-
+void fg_int_event(struct gauge_device *gauge_dev, enum gauge_event evt)
+{
+	fg_bat_temp_int_sw_check();
+	gauge_dev_notify_event(gauge_dev, evt, 0);
+}
 void fg_update_sw_low_battery_check(unsigned int thd)
 {
 	int vbat;
@@ -1714,8 +1796,7 @@ void fg_zcv_int_handler(void)
 		zcv_intr_en = 0;
 		gauge_set_zcv_interrupt_en(zcv_intr_en);
 	}
-
-	fg_bat_temp_int_sw_check();
+	fg_int_event(gm.gdev, EVT_INT_ZCV);
 	sw_check_bat_plugout();
 }
 
@@ -1770,7 +1851,7 @@ void fg_cycle_int_handler(void)
 		return;
 	pmic_enable_interrupt(FG_N_CHARGE_L_NO, 0, "GM30");
 	wakeup_fg_algo(FG_INTR_BAT_CYCLE);
-	fg_bat_temp_int_sw_check();
+	fg_int_event(gm.gdev, EVT_INT_BAT_CYCLE);
 	sw_check_bat_plugout();
 }
 
@@ -1791,9 +1872,7 @@ void fg_iavg_int_ht_handler(void)
 		gm.hw_status.iavg_intr_flag);
 
 	wakeup_fg_algo(FG_INTR_IAVG);
-
-	fg_bat_temp_int_sw_check();
-
+	fg_int_event(gm.gdev, EVT_INT_IAVG);
 	sw_check_bat_plugout();
 }
 
@@ -1811,8 +1890,7 @@ void fg_iavg_int_lt_handler(void)
 		gm.hw_status.iavg_intr_flag);
 
 	wakeup_fg_algo(FG_INTR_IAVG);
-
-	fg_bat_temp_int_sw_check();
+	fg_int_event(gm.gdev, EVT_INT_IAVG);
 	sw_check_bat_plugout();
 }
 
@@ -1959,7 +2037,7 @@ void fg_bat_plugout_int_handler(void)
 
 	/* avoid battery plug status mismatch case*/
 	if (is_bat_exist == 1) {
-		fg_bat_temp_int_sw_check();
+		fg_int_event(gm.gdev, EVT_INT_BAT_PLUGOUT);
 		gm.plug_miss_count++;
 
 		bm_err("[%s]is_bat %d miss:%d\n",
@@ -1985,7 +2063,7 @@ void fg_bat_plugout_int_handler(void)
 		battery_main.BAT_STATUS = POWER_SUPPLY_STATUS_UNKNOWN;
 		wakeup_fg_algo(FG_INTR_BAT_PLUGOUT);
 		battery_update(&battery_main);
-		fg_bat_temp_int_sw_check();
+		fg_int_event(gm.gdev, EVT_INT_BAT_PLUGOUT);
 		kernel_power_off();
 	}
 }
@@ -2039,9 +2117,7 @@ void fg_nafg_int_handler(void)
 
 	/* 2. Stop HW interrupt*/
 	gauge_set_nag_en(nafg_en);
-
-	fg_bat_temp_int_sw_check();
-
+	fg_int_event(gm.gdev, EVT_INT_NAFG);
 	/* 3. Notify fg daemon */
 	wakeup_fg_algo(FG_INTR_NAG_C_DLTV);
 
@@ -2067,8 +2143,7 @@ int fg_bat_int1_h_handler(struct gauge_consumer *consumer)
 		__func__,
 		fg_coulomb, gm.fg_bat_int1_ht,
 		gm.fg_bat_int1_lt, gm.fg_bat_int1_gap);
-
-	fg_bat_temp_int_sw_check();
+	fg_int_event(gm.gdev, EVT_INT_BAT_INT1_HT);
 	wakeup_fg_algo(FG_INTR_BAT_INT1_HT);
 	sw_check_bat_plugout();
 	return 0;
@@ -2092,8 +2167,7 @@ int fg_bat_int1_l_handler(struct gauge_consumer *consumer)
 		__func__,
 		fg_coulomb, gm.fg_bat_int1_ht,
 		gm.fg_bat_int1_lt, gm.fg_bat_int1_gap);
-
-	fg_bat_temp_int_sw_check();
+	fg_int_event(gm.gdev, EVT_INT_BAT_INT1_LT);
 	wakeup_fg_algo(FG_INTR_BAT_INT1_LT);
 	sw_check_bat_plugout();
 
@@ -2111,7 +2185,7 @@ int fg_bat_int2_h_handler(struct gauge_consumer *consumer)
 
 
 	fg_sw_bat_cycle_accu();
-	fg_bat_temp_int_sw_check();
+	fg_int_event(gm.gdev, EVT_INT_BAT_INT2_HT);
 	wakeup_fg_algo(FG_INTR_BAT_INT2_HT);
 	sw_check_bat_plugout();
 
@@ -2128,8 +2202,7 @@ int fg_bat_int2_l_handler(struct gauge_consumer *consumer)
 		fg_coulomb, gm.fg_bat_int2_lt);
 
 	fg_sw_bat_cycle_accu();
-
-	fg_bat_temp_int_sw_check();
+	fg_int_event(gm.gdev, EVT_INT_BAT_INT2_LT);
 	wakeup_fg_algo(FG_INTR_BAT_INT2_LT);
 	sw_check_bat_plugout();
 
@@ -2149,8 +2222,7 @@ void fg_vbat2_l_int_handler(void)
 	gauge_enable_vbat_high_interrupt(lt_ht_en);
 	gauge_enable_vbat_low_interrupt(lt_ht_en);
 	wakeup_fg_algo(FG_INTR_VBAT2_L);
-
-	fg_bat_temp_int_sw_check();
+	fg_int_event(gm.gdev, EVT_INT_VBAT_L);
 	sw_check_bat_plugout();
 }
 
@@ -2165,8 +2237,7 @@ void fg_vbat2_h_int_handler(void)
 	gauge_enable_vbat_low_interrupt(lt_ht_en);
 	disable_shutdown_cond(LOW_BAT_VOLT);
 	wakeup_fg_algo(FG_INTR_VBAT2_H);
-
-	fg_bat_temp_int_sw_check();
+	fg_int_event(gm.gdev, EVT_INT_VBAT_H);
 	sw_check_bat_plugout();
 }
 
@@ -2189,8 +2260,7 @@ void fg_drv_update_hw_status(void)
 
 	if (gauge_get_hw_version() >= GAUGE_HW_V1000 &&
 	gauge_get_hw_version() < GAUGE_HW_V2000)
-		fg_bat_temp_int_sw_check();
-
+		fg_int_event(gm.gdev, EVB_PERIODIC_CHECK);
 	fg_update_sw_iavg();
 
 	gauge_dev_get_boot_battery_plug_out_status(
@@ -3940,7 +4010,6 @@ void mtk_battery_init(struct platform_device *dev)
 	} else
 		bm_err("gauge_dev is NULL\n");
 
-	fg_custom_init_from_header();
 #ifdef CONFIG_OF
 	fg_custom_init_from_dts(dev);
 #endif

@@ -65,7 +65,7 @@ int mtk_pe20_reset_ta_vchr(struct charger_manager *pinfo)
 				charger_dev_enable(pinfo->chg2_dev, false);
 		}
 
-		ret = charger_dev_set_ta20_reset(pinfo->chg1_dev);
+		ret = charger_dev_reset_ta(pinfo->chg1_dev);
 		msleep(250);
 
 		/* Check charger's voltage */

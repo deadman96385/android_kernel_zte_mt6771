@@ -101,8 +101,8 @@ static void linear_chg_select_charging_current_limit(struct charger_manager *inf
 		if (IS_ENABLED(CONFIG_USBIF_COMPLIANCE) && info->chr_type == STANDARD_HOST)
 			pr_debug("USBIF & STAND_HOST skip current check\n");
 		else {
-			if (info->sw_jeita.sm == TEMP_T0_TO_T1)
-				pdata->charging_current_limit = 350000; /* TODO: 200mA? */
+			if (info->sw_jeita.chg_current < pdata->charging_current_limit)
+				pdata->charging_current_limit = info->sw_jeita.chg_current;
 		}
 	}
 
@@ -110,14 +110,19 @@ static void linear_chg_select_charging_current_limit(struct charger_manager *inf
 		if (pdata->thermal_charging_current_limit < pdata->charging_current_limit)
 			pdata->charging_current_limit = pdata->thermal_charging_current_limit;
 
+	if (pdata->policy_input_current_limit != -1)
+		if (pdata->policy_input_current_limit < pdata->charging_current_limit)
+			pdata->charging_current_limit = pdata->policy_input_current_limit;
+
 done:
 	ret = charger_dev_get_min_charging_current(info->chg1_dev, &ichg1_min);
 	if (ret != -ENOTSUPP && pdata->charging_current_limit < ichg1_min)
 		pdata->charging_current_limit = 0;
 
-	chr_err("force:%d thermal:%d setting:%d type:%d usb_unlimited:%d usbif:%d usbsm:%d\n",
+	chr_err("force:%d thermal:%d policy:%d setting:%d type:%d usb_unlimited:%d usbif:%d usbsm:%d\n",
 		pdata->force_charging_current,
 		pdata->thermal_charging_current_limit,
+		pdata->policy_input_current_limit,
 		pdata->charging_current_limit,
 		info->chr_type, info->usb_unlimited,
 		IS_ENABLED(CONFIG_USBIF_COMPLIANCE), info->usb_state);
@@ -223,6 +228,7 @@ static bool charging_full_check(struct charger_manager *info)
 	bool chg_full_status = false;
 	int chg_current = pmic_get_charging_current() * 1000; /* uA */
 
+	pr_info("chg_current = %d, chg_full_current=%d\n", chg_current, algo_data->chg_full_current);
 	if (chg_current > algo_data->chg_full_current)
 		full_check_count = 0;
 	else {
@@ -267,6 +273,7 @@ static int mtk_linear_chr_cc(struct charger_manager *info)
 	struct linear_charging_alg_data *algo_data = info->algorithm_data;
 	struct timespec time_now, charging_time;
 	u32 vbat;
+	int zte_topoff_voltage_threshold = TOPOFF_VOLTAGE;
 
 	/* check bif */
 	if (IS_ENABLED(CONFIG_MTK_BIF_SUPPORT)) {
@@ -289,7 +296,14 @@ static int mtk_linear_chr_cc(struct charger_manager *info)
 	msleep(1000);
 
 	vbat = battery_get_bat_voltage() * 1000; /* uV */
-	if (vbat > algo_data->topoff_voltage) {
+	if (info->enable_sw_jeita && info->sw_jeita.cv < algo_data->topoff_voltage)
+		zte_topoff_voltage_threshold = info->sw_jeita.cv - 100000;
+	else
+		zte_topoff_voltage_threshold = algo_data->topoff_voltage;
+
+	pr_info("vbat = %d, topoff_voltage = %d\n", vbat, zte_topoff_voltage_threshold);
+
+	if (vbat > zte_topoff_voltage_threshold) {
 		algo_data->state = CHR_TOPOFF;
 		get_monotonic_boottime(&algo_data->topoff_begin_time);
 		pr_notice("enter TOPOFF mode on vbat = %d uV\n", vbat);

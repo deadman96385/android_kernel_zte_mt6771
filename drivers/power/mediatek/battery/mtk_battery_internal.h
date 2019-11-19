@@ -799,6 +799,9 @@ struct mtk_battery {
 	struct battery_temperature_table rbat;
 
 	struct fgd_cmd_param_t_custom fg_data;
+
+	/* add by zte 10172188 */
+	int car_backup;
 };
 
 
@@ -909,7 +912,7 @@ extern void fg_bat_temp_int_sw_check(void);
 extern void fg_update_sw_low_battery_check(unsigned int thd);
 extern void fg_sw_bat_cycle_accu(void);
 extern void fg_ocv_query_soc(int ocv);
-
+extern void fg_int_event(struct gauge_device *gauge_dev, enum gauge_event evt);
 /* GM3 simulator */
 extern void gm3_log_init(void);
 extern void gm3_log_notify(unsigned int interrupt);

@@ -25,6 +25,7 @@ struct mtk_pe {
 	bool is_cable_out_occur; /* Plug out happened while detecting PE+ */
 	bool is_connect;
 	bool is_enabled;
+	int above_5v_retry_count;
 };
 
 #ifdef CONFIG_MTK_PUMP_EXPRESS_PLUS_SUPPORT
@@ -39,6 +40,8 @@ extern int mtk_pe_set_charging_current(struct charger_manager *pinfo,
 extern void mtk_pe_set_to_check_chr_type(struct charger_manager *pinfo, bool check);
 extern void mtk_pe_set_is_enable(struct charger_manager *pinfo, bool enable);
 extern void mtk_pe_set_is_cable_out_occur(struct charger_manager *pinfo, bool out);
+extern void mtk_pe_set_is_plug_in(struct charger_manager *pinfo);
+extern void mtk_pe_set_is_plug_out(struct charger_manager *pinfo);
 
 extern bool mtk_pe_get_to_check_chr_type(struct charger_manager *pinfo);
 extern bool mtk_pe_get_is_connect(struct charger_manager *pinfo);
@@ -81,6 +84,12 @@ static inline void mtk_pe_set_is_cable_out_occur(struct charger_manager *pinfo, 
 {
 }
 static inline void mtk_pe_set_is_enable(struct charger_manager *pinfo, bool enable)
+{
+}
+static inline void mtk_pe_set_is_plug_in(struct charger_manager *pinfo)
+{
+}
+static inline void mtk_pe_set_is_plug_out(struct charger_manager *pinfo)
 {
 }
 

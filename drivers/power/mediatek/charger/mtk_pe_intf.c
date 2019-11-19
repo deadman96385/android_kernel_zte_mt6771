@@ -190,6 +190,71 @@ static int __pe_increase_ta_vchr(struct charger_manager *pinfo)
 	return ret;
 }
 
+#ifdef ZTE_PE_PLUS_INCREASE_TA_VCHR
+static int __pe_increase_ta_vchr_zte(struct charger_manager *pinfo)
+{
+	int ret = 0;
+	bool increase = true; /* Increase */
+
+	if (mt_get_charger_type() != CHARGER_UNKNOWN) {
+		ret = charger_dev_send_ta_current_pattern_zte(pinfo->chg1_dev, increase);
+
+		if (ret < 0)
+			pr_err("%s: failed, ret = %d\n",
+				__func__, ret);
+		else
+			pr_err("%s: OK\n", __func__);
+		return ret;
+	}
+
+	/* TA is not exist */
+	ret = -EIO;
+	pr_err("%s: failed, cable out\n", __func__);
+	return ret;
+}
+
+static int pe_increase_ta_vchr_zte(struct charger_manager *pinfo, u32 vchr_target)
+{
+	int ret = 0;
+	int vchr_before, vchr_after;
+	u32 retry_cnt = 0;
+	bool chg2_chip_enabled = false;
+
+	do {
+		if (pinfo->chg2_dev) {
+			charger_dev_is_chip_enabled(pinfo->chg2_dev,
+				&chg2_chip_enabled);
+			if (chg2_chip_enabled)
+				charger_dev_enable(pinfo->chg2_dev, false);
+		}
+
+		vchr_before = pe_get_vbus();
+		if (retry_cnt < 3)
+			__pe_increase_ta_vchr(pinfo);
+		else
+			__pe_increase_ta_vchr_zte(pinfo);
+		vchr_after = pe_get_vbus();
+
+		if (abs(vchr_after - vchr_target) <= 1000000) {
+			pr_err("%s: OK\n", __func__);
+			return ret;
+		}
+		pr_err("%s: retry, cnt = %d, vchr = (%d, %d), vchr_target = %d\n",
+			__func__, retry_cnt, vchr_before / 1000,
+			vchr_after / 1000, vchr_target / 1000);
+
+		retry_cnt++;
+	} while (mt_get_charger_type() != CHARGER_UNKNOWN && retry_cnt < 6 &&
+		pinfo->enable_hv_charging && cancel_pe(pinfo) != true);
+
+	ret = -EIO;
+	pr_err("%s: failed, vchr = (%d, %d), vchr_target = %d\n",
+		__func__, vchr_before / 1000, vchr_after / 1000,
+		vchr_target / 1000);
+
+	return ret;
+}
+#else
 static int pe_increase_ta_vchr(struct charger_manager *pinfo, u32 vchr_target)
 {
 	int ret = 0;
@@ -228,6 +293,7 @@ static int pe_increase_ta_vchr(struct charger_manager *pinfo, u32 vchr_target)
 
 	return ret;
 }
+#endif
 
 static int pe_detect_ta(struct charger_manager *pinfo)
 {
@@ -242,7 +308,11 @@ static int pe_detect_ta(struct charger_manager *pinfo)
 		goto _err;
 
 	pe->ta_vchr_org = pe_get_vbus();
+#ifdef ZTE_PE_PLUS_INCREASE_TA_VCHR
+	ret = pe_increase_ta_vchr_zte(pinfo, 7000000); /* uv */
+#else
 	ret = pe_increase_ta_vchr(pinfo, 7000000); /* uv */
+#endif
 
 	if (ret == 0) {
 		pe->is_connect = true;
@@ -313,6 +383,7 @@ int mtk_pe_init(struct charger_manager *pinfo)
 	pinfo->pe.to_check_chr_type = true;
 	pinfo->pe.to_tune_ta_vchr = true;
 	pinfo->pe.is_enabled = true;
+	pinfo->pe.above_5v_retry_count = 0;
 
 	return 0;
 }
@@ -322,14 +393,13 @@ int mtk_pe_reset_ta_vchr(struct charger_manager *pinfo)
 	int ret = 0, chr_volt = 0;
 	u32 retry_cnt = 0;
 	struct mtk_pe *pe = &pinfo->pe;
-	int aicr;
 	bool chg2_chip_enabled = false;
 
 	chr_debug("%s: starts\n", __func__);
 
-	/* Set aicr to 70 mA */
-	aicr = 70000;
+	pe_set_mivr(pinfo, pinfo->data.min_charger_voltage);
 
+	/* Reset TA's charging voltage */
 	do {
 		if (pinfo->chg2_dev) {
 			charger_dev_is_chip_enabled(pinfo->chg2_dev,
@@ -338,9 +408,9 @@ int mtk_pe_reset_ta_vchr(struct charger_manager *pinfo)
 				charger_dev_enable(pinfo->chg2_dev, false);
 		}
 
-		ret = charger_dev_set_input_current(pinfo->chg1_dev, aicr);
+		ret = charger_dev_reset_ta(pinfo->chg1_dev);
+		msleep(250);
 
-		msleep(500);
 		/* Check charger's voltage */
 		chr_volt = pe_get_vbus();
 		if (abs(chr_volt - pe->ta_vchr_org) <= 1000000) {
@@ -351,11 +421,9 @@ int mtk_pe_reset_ta_vchr(struct charger_manager *pinfo)
 		retry_cnt++;
 	} while (retry_cnt < 3);
 
-	/* Set aicr to 500 mA after reset TA*/
-	ret = charger_dev_set_input_current(pinfo->chg1_dev, 500000);
-
 	if (pe->is_connect) {
 		pr_err("%s: failed, ret = %d\n", __func__, ret);
+		pe_set_mivr(pinfo, chr_volt - 1000000);
 		/*
 		 * SET_INPUT_CURRENT success but chr_volt does not reset to 5V
 		 * set ret = -EIO to represent the case
@@ -366,7 +434,6 @@ int mtk_pe_reset_ta_vchr(struct charger_manager *pinfo)
 
 	/* Enable OVP */
 	ret = pe_enable_vbus_ovp(pinfo, true);
-	pe_set_mivr(pinfo, pinfo->data.min_charger_voltage);
 	pr_err("%s: OK\n", __func__);
 
 	return ret;
@@ -391,7 +458,7 @@ int mtk_pe_check_charger(struct charger_manager *pinfo)
 		return ret;
 	}
 
-	if (!pinfo->enable_pe_plus)
+	if (!pinfo->enable_pe_plus || charger_policy_get_status() == true)
 		return -ENOTSUPP;
 
 	if (!pe->is_enabled) {
@@ -458,6 +525,7 @@ _err:
 	return ret;
 }
 
+#define ABOVE_5V_RETRY_COUNTER 3
 int mtk_pe_start_algorithm(struct charger_manager *pinfo)
 {
 	int ret = 0, chr_volt;
@@ -510,7 +578,11 @@ int mtk_pe_start_algorithm(struct charger_manager *pinfo)
 
 	/* Increase TA voltage to 9V */
 	if (pinfo->data.ta_9v_support || pinfo->data.ta_12v_support) {
+#ifdef ZTE_PE_PLUS_INCREASE_TA_VCHR
+		ret = pe_increase_ta_vchr_zte(pinfo, 9000000); /* uv */
+#else
 		ret = pe_increase_ta_vchr(pinfo, 9000000); /* uv */
+#endif
 		if (ret < 0) {
 			pr_err("%s: failed, cannot increase to 9V\n",
 				__func__);
@@ -524,7 +596,11 @@ int mtk_pe_start_algorithm(struct charger_manager *pinfo)
 
 	/* Increase TA voltage to 12V */
 	if (pinfo->data.ta_12v_support) {
+#ifdef ZTE_PE_PLUS_INCREASE_TA_VCHR
+		ret = pe_increase_ta_vchr_zte(pinfo, 12000000); /* uv */
+#else
 		ret = pe_increase_ta_vchr(pinfo, 12000000); /* uv */
+#endif
 		if (ret < 0) {
 			pr_err("%s: failed, cannot increase to 12V\n",
 				__func__);
@@ -550,6 +626,11 @@ int mtk_pe_start_algorithm(struct charger_manager *pinfo)
 	return ret;
 
 _err:
+	++pe->above_5v_retry_count;
+	if (pe->above_5v_retry_count < ABOVE_5V_RETRY_COUNTER) {
+		pr_err("%s:  Above 5V Retry %d times\n", __func__, pe->above_5v_retry_count);
+		pe->to_check_chr_type = true;
+	}
 	pe_leave(pinfo, false);
 _out:
 	chr_volt = pe_get_vbus();
@@ -621,6 +702,20 @@ void mtk_pe_set_is_cable_out_occur(struct charger_manager *pinfo, bool out)
 	pr_err("%s: out = %d\n", __func__, out);
 	mutex_lock(&pinfo->pe.pmic_sync_lock);
 	pinfo->pe.is_cable_out_occur = out;
+	mutex_unlock(&pinfo->pe.pmic_sync_lock);
+}
+
+void mtk_pe_set_is_plug_in(struct charger_manager *pinfo)
+{
+	mutex_lock(&pinfo->pe.pmic_sync_lock);
+	pinfo->pe.above_5v_retry_count = 0;
+	mutex_unlock(&pinfo->pe.pmic_sync_lock);
+}
+
+void mtk_pe_set_is_plug_out(struct charger_manager *pinfo)
+{
+	mutex_lock(&pinfo->pe.pmic_sync_lock);
+	pinfo->pe.above_5v_retry_count = 0;
 	mutex_unlock(&pinfo->pe.pmic_sync_lock);
 }
 

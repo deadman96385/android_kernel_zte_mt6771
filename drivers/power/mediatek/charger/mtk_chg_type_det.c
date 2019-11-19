@@ -121,6 +121,7 @@ struct mt_charger {
 	struct power_supply *usb_psy;
 	bool chg_online; /* Has charger in or not */
 	enum charger_type chg_type;
+	int charging_enabled;
 };
 
 static int mt_charger_online(struct mt_charger *mtk_chg)
@@ -133,8 +134,10 @@ static int mt_charger_online(struct mt_charger *mtk_chg)
 		boot_mode = get_boot_mode();
 		if (boot_mode == KERNEL_POWER_OFF_CHARGING_BOOT ||
 		    boot_mode == LOW_POWER_OFF_CHARGING_BOOT) {
+#ifndef ZTE_FEATURE_PV_AR
 			pr_err("%s: Unplug Charger/USB\n", __func__);
 			kernel_power_off();
+#endif
 		}
 	}
 
@@ -157,6 +160,20 @@ static int mt_charger_get_property(struct power_supply *psy,
 		if (mtk_chg->chg_type != CHARGER_UNKNOWN)
 			val->intval = 1;
 		break;
+	case POWER_SUPPLY_PROP_BATTERY_CHARGING_ENABLED:
+		val->intval = charger_manager_get_enable_status();
+		break;
+	case POWER_SUPPLY_PROP_CHARGING_ENABLED:
+		val->intval = mtk_chg->charging_enabled;
+		break;
+	case POWER_SUPPLY_PROP_SET_SHIP_MODE:
+		val->intval = charger_manager_get_ship_mode();
+		break;
+#ifdef CONFIG_CHARGER_PMIC_VOTER
+	case POWER_SUPPLY_PROP_VOLTAGE_MAX:
+		val->intval = charger_manager_get_constant_voltage();
+		break;
+#endif
 	default:
 		return -EINVAL;
 	}
@@ -164,6 +181,20 @@ static int mt_charger_get_property(struct power_supply *psy,
 	return 0;
 }
 
+static int mt_charger_prop_is_writeable(struct power_supply *psy,
+		enum power_supply_property psp)
+{
+	switch (psp) {
+	case POWER_SUPPLY_PROP_BATTERY_CHARGING_ENABLED:
+	case POWER_SUPPLY_PROP_CHARGING_ENABLED:
+	case POWER_SUPPLY_PROP_SET_SHIP_MODE:
+		return 1;
+	default:
+		break;
+	}
+
+	return 0;
+}
 
 static int mt_charger_set_property(struct power_supply *psy,
 	enum power_supply_property psp, const union power_supply_propval *val)
@@ -186,6 +217,20 @@ static int mt_charger_set_property(struct power_supply *psy,
 		mtk_chg->chg_type = val->intval;
 		g_chr_type = val->intval;
 		break;
+	case POWER_SUPPLY_PROP_BATTERY_CHARGING_ENABLED:
+		charger_manager_battery_charging_enabled(val->intval);
+		break;
+	case POWER_SUPPLY_PROP_CHARGING_ENABLED:
+		if (val->intval == 0) {
+			charger_manager_set_input_current_limit_policy(0);
+		} else {
+			charger_manager_set_input_current_limit_policy(-1);
+		}
+		mtk_chg->charging_enabled = val->intval;
+		break;
+	case POWER_SUPPLY_PROP_SET_SHIP_MODE:
+		charger_manager_set_ship_mode(val->intval);
+		break;
 	default:
 		return -EINVAL;
 	}
@@ -201,6 +246,10 @@ static int mt_charger_set_property(struct power_supply *psy,
 		else
 			mt_usb_disconnect();
 	}
+
+	if (psp == POWER_SUPPLY_PROP_BATTERY_CHARGING_ENABLED ||
+		psp == POWER_SUPPLY_PROP_CHARGING_ENABLED)
+		return 0;
 
 	mtk_charger_int_handler();
 	fg_charger_in_handler();
@@ -247,6 +296,12 @@ static int mt_usb_get_property(struct power_supply *psy,
 		else
 			val->intval = 0;
 		break;
+	case POWER_SUPPLY_PROP_PRESENT:
+		if (mtk_chg->chg_type != CHARGER_UNKNOWN)
+			val->intval = 1;
+		else
+			val->intval = 0;
+		break;
 	case POWER_SUPPLY_PROP_CURRENT_MAX:
 		val->intval = 500000;
 		break;
@@ -262,6 +317,12 @@ static int mt_usb_get_property(struct power_supply *psy,
 
 static enum power_supply_property mt_charger_properties[] = {
 	POWER_SUPPLY_PROP_ONLINE,
+	POWER_SUPPLY_PROP_BATTERY_CHARGING_ENABLED,
+	POWER_SUPPLY_PROP_CHARGING_ENABLED,
+	POWER_SUPPLY_PROP_SET_SHIP_MODE,
+#ifdef CONFIG_CHARGER_PMIC_VOTER
+	POWER_SUPPLY_PROP_VOLTAGE_MAX,
+#endif
 };
 
 static enum power_supply_property mt_ac_properties[] = {
@@ -269,6 +330,7 @@ static enum power_supply_property mt_ac_properties[] = {
 };
 
 static enum power_supply_property mt_usb_properties[] = {
+	POWER_SUPPLY_PROP_PRESENT,
 	POWER_SUPPLY_PROP_ONLINE,
 	POWER_SUPPLY_PROP_CURRENT_MAX,
 	POWER_SUPPLY_PROP_VOLTAGE_MAX,
@@ -293,6 +355,7 @@ static int mt_charger_probe(struct platform_device *pdev)
 	mt_chg->chg_desc.num_properties = ARRAY_SIZE(mt_charger_properties);
 	mt_chg->chg_desc.set_property = mt_charger_set_property;
 	mt_chg->chg_desc.get_property = mt_charger_get_property;
+	mt_chg->chg_desc.property_is_writeable = mt_charger_prop_is_writeable;
 	mt_chg->chg_cfg.drv_data = mt_chg;
 
 	mt_chg->ac_desc.name = "ac";
@@ -338,6 +401,7 @@ static int mt_charger_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, mt_chg);
 	device_init_wakeup(&pdev->dev, 1);
+	mt_chg->charging_enabled = 1;
 
 	pr_info("%s\n", __func__);
 	return 0;

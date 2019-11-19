@@ -228,7 +228,7 @@ static void dual_swchg_select_charging_current_limit(struct charger_manager *inf
 
 			/* Slave charger may not have input current control */
 			pdata2->input_current_limit
-					= info->data.ac_charger_input_current;
+					= pdata->input_current_limit;
 
 			switch (swchgalg->state) {
 			case CHR_CC:
@@ -261,9 +261,10 @@ static void dual_swchg_select_charging_current_limit(struct charger_manager *inf
 		if (IS_ENABLED(CONFIG_USBIF_COMPLIANCE) && info->chr_type == STANDARD_HOST)
 			pr_debug("USBIF & STAND_HOST skip current check\n");
 		else {
-			if (info->sw_jeita.sm == TEMP_T0_TO_T1) {
-				pdata->input_current_limit = 500000;
-				pdata->charging_current_limit = 350000;
+			if (info->sw_jeita.sm != TEMP_T2_TO_T3) {
+				if (info->sw_jeita.chg_current < pdata->charging_current_limit)
+					pdata->charging_current_limit = info->sw_jeita.chg_current;
+				pdata2->charging_current_limit = 0;
 			}
 		}
 	}
@@ -277,6 +278,7 @@ static void dual_swchg_select_charging_current_limit(struct charger_manager *inf
 	if (pdata->thermal_charging_current_limit != -1) {
 		if (pdata->thermal_charging_current_limit < pdata->charging_current_limit)
 			pdata->charging_current_limit = pdata->thermal_charging_current_limit;
+
 		ret = charger_dev_get_min_charging_current(info->chg1_dev, &ichg1_min);
 		if (ret != -ENOTSUPP && pdata->thermal_charging_current_limit < ichg1_min)
 			pdata->charging_current_limit = 0;
@@ -309,6 +311,13 @@ static void dual_swchg_select_charging_current_limit(struct charger_manager *inf
 			pdata2->input_current_limit = 0;
 	}
 
+	if (pdata->policy_input_current_limit != -1) {
+		if (pdata->policy_input_current_limit < pdata->input_current_limit) {
+			pdata->input_current_limit = pdata->policy_input_current_limit;
+			pdata2->input_current_limit = pdata->policy_input_current_limit;
+		}
+	}
+
 	if (mtk_pe40_get_is_connect(info)) {
 		if (info->pe4.pe4_input_current_limit != -1 &&
 			info->pe4.pe4_input_current_limit < pdata->input_current_limit)
@@ -329,13 +338,14 @@ static void dual_swchg_select_charging_current_limit(struct charger_manager *inf
 
 done:
 
-	pr_notice("force:%d %d thermal:(%d %d,%d %d)(%d %d %d)setting:(%d %d)(%d %d)",
+	pr_notice("force:%d %d thermal:(%d %d,%d %d) policy:(%d) pe4:(%d %d %d) setting:master(%d %d) slaver(%d %d)",
 		_uA_to_mA(pdata->force_charging_current),
 		_uA_to_mA(pdata2->force_charging_current),
 		_uA_to_mA(pdata->thermal_input_current_limit),
 		_uA_to_mA(pdata->thermal_charging_current_limit),
 		_uA_to_mA(pdata2->thermal_input_current_limit),
 		_uA_to_mA(pdata2->thermal_charging_current_limit),
+		_uA_to_mA(pdata->policy_input_current_limit),
 		_uA_to_mA(info->pe4.pe4_input_current_limit),
 		_uA_to_mA(info->pe4.pe4_input_current_limit_setting),
 		_uA_to_mA(info->pe4.input_current_limit),
@@ -388,18 +398,23 @@ done:
 	if (pdata->thermal_input_current_limit == -1 &&
 	    pdata->thermal_charging_current_limit == -1 &&
 	    pdata2->thermal_input_current_limit == -1 &&
-	    pdata2->thermal_charging_current_limit == -1) {
+	    pdata2->thermal_charging_current_limit == -1 &&
+	    info->sw_jeita.sm == TEMP_T2_TO_T3) {
+#ifdef CONFIG_MTK_PUMP_EXPRESS_PLUS_20_SUPPORT
 		if (!mtk_pe20_get_is_enable(info) && info->can_charging) {
 			swchgalg->state = CHR_CC;
 			mtk_pe20_set_is_enable(info, true);
 			mtk_pe20_set_to_check_chr_type(info, true);
 		}
+#endif
 
+#ifdef CONFIG_MTK_PUMP_EXPRESS_PLUS_SUPPORT
 		if (!mtk_pe_get_is_enable(info) && info->can_charging) {
 			swchgalg->state = CHR_CC;
 			mtk_pe_set_is_enable(info, true);
 			mtk_pe_set_to_check_chr_type(info, true);
 		}
+#endif
 	}
 
 	mutex_unlock(&swchgalg->ichg_aicr_access_mutex);
@@ -435,6 +450,7 @@ static void dual_swchg_turn_on_charging(struct charger_manager *info)
 	bool chg1_enable = true;
 	bool chg2_enable = true;
 	bool chg2_chip_enabled = false;
+	int ret = 0;
 
 	charger_dev_is_chip_enabled(info->chg2_dev, &chg2_chip_enabled);
 
@@ -489,7 +505,7 @@ static void dual_swchg_turn_on_charging(struct charger_manager *info)
 				charger_dev_set_eoc_current(info->chg1_dev, 450000);
 				charger_dev_enable_termination(info->chg1_dev, false);
 			} else {
-				charger_dev_set_eoc_current(info->chg1_dev, 150000);
+				charger_dev_set_eoc_current(info->chg1_dev, 200000);
 				if (mtk_pe40_get_is_connect(info) == false)
 					charger_dev_enable_termination(info->chg1_dev, true);
 			}
@@ -498,7 +514,7 @@ static void dual_swchg_turn_on_charging(struct charger_manager *info)
 				charger_dev_enable(info->chg2_dev, false);
 				charger_dev_enable_chip(info->chg2_dev, false);
 			}
-			charger_dev_set_eoc_current(info->chg1_dev, 150000);
+			charger_dev_set_eoc_current(info->chg1_dev, 200000);
 			charger_dev_enable_termination(info->chg1_dev, true);
 		}
 	} else {
@@ -518,8 +534,11 @@ static void dual_swchg_turn_on_charging(struct charger_manager *info)
 
 		if (mtk_pe_get_is_enable(info)) {
 			mtk_pe_set_is_enable(info, false);
-			if (mtk_pe_get_is_connect(info))
-				mtk_pe_reset_ta_vchr(info);
+			if (mtk_pe_get_is_connect(info)) {
+				ret = mtk_pe_reset_ta_vchr(info);
+				if (ret < 0)
+					mtk_pe_set_is_enable(info, true);
+			}
 		}
 	}
 
@@ -538,6 +557,7 @@ static int mtk_dual_switch_charging_plug_in(struct charger_manager *info)
 	info->polling_interval = CHARGING_INTERVAL;
 	swchgalg->disable_charging = false;
 	charger_manager_notifier(info, CHARGER_NOTIFY_START_CHARGING);
+	mtk_pe_set_is_plug_in(info);
 
 	return 0;
 }
@@ -548,8 +568,11 @@ static int mtk_dual_switch_charging_plug_out(struct charger_manager *info)
 	mtk_pe_set_is_cable_out_occur(info, true);
 	mtk_pdc_plugout(info);
 	mtk_pe40_plugout_reset(info);
-	/* charger_dev_enable(info->chg2_dev, false); */
+
+	charger_dev_enable(info->chg2_dev, false);
+	charger_dev_enable_chip(info->chg2_dev, false);
 	charger_manager_notifier(info, CHARGER_NOTIFY_STOP_CHARGING);
+	mtk_pe_set_is_plug_out(info);
 	return 0;
 }
 
@@ -776,8 +799,8 @@ static int mtk_dual_switch_charging_run(struct charger_manager *info)
 	charger_dev_dump_registers(info->chg1_dev);
 	charger_dev_is_enabled(info->chg2_dev, &chg2_en);
 	pr_debug_ratelimited("chg2_en: %d\n", chg2_en);
-	if (chg2_en)
-		charger_dev_dump_registers(info->chg2_dev);
+	charger_dev_dump_registers(info->chg2_dev);
+
 	return 0;
 }
 
@@ -817,7 +840,7 @@ int dual_charger_dev_event(struct notifier_block *nb, unsigned long event, void 
 					swchgalg->state = CHR_POSTCC;
 
 				charger_dev_enable(info->chg2_dev, false);
-				charger_dev_set_eoc_current(info->chg1_dev, 150000);
+				charger_dev_set_eoc_current(info->chg1_dev, 200000);
 				if (mtk_pe40_get_is_connect(info) == false)
 					charger_dev_enable_termination(info->chg1_dev, true);
 			} else {

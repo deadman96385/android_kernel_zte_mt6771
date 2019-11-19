@@ -1,0 +1,193 @@
+/************************************************************************
+* Copyright (C) 2012-2015, Focaltech Systems (R)£¬All Rights Reserved.
+*
+* File Name: focaltech_test_main.h
+*
+* Author: Software Development Team, AE
+*
+* Created: 2016-08-01
+*
+* Abstract: test entry for all IC
+*
+************************************************************************/
+#ifndef _TEST_LIB_H
+#define _TEST_LIB_H
+
+#include "focaltech_test_detail_threshold.h"
+
+#define boolean unsigned char
+#define bool unsigned char
+#define BYTE unsigned char
+#define false 0
+#define true  1
+
+enum NodeType
+{
+    NODE_INVALID_TYPE = 0,
+    NODE_VALID_TYPE = 1,
+    NODE_KEY_TYPE = 2,
+    NODE_AST_TYPE = 3,
+};
+
+/////////////////////IIC communication
+typedef int (*FTS_I2C_READ_FUNCTION)(unsigned char *, int , unsigned char *, int);
+typedef int (*FTS_I2C_WRITE_FUNCTION)(unsigned char *, int);
+
+extern FTS_I2C_READ_FUNCTION fts_i2c_read_test;
+extern FTS_I2C_WRITE_FUNCTION fts_i2c_write_test;
+
+extern int init_i2c_read_func(FTS_I2C_READ_FUNCTION fpI2C_Read);
+extern int init_i2c_write_func(FTS_I2C_WRITE_FUNCTION fpI2C_Write);
+
+//     about Test Item Configuration
+
+//
+
+///////////////////////about test
+int set_param_data(char *TestParamData);//load config
+boolean start_test_tp(void);//test entry
+int get_test_data(char *pTestData);//test result data. (pTestData, External application for memory, buff size >= 1024*80)
+int get_tpd_node_data(int *data, int length, int cmd, int type);
+
+int focaltech_test_main_init(void);
+int focaltech_test_main_exit(void);
+
+
+#define MIN_HOLE_LEVEL   (-1)
+#define MAX_HOLE_LEVEL   0x7F
+/*-----------------------------------------------------------
+Error Code for Comm
+-----------------------------------------------------------*/
+#define ERROR_CODE_OK                           0x00
+#define ERROR_CODE_CHECKSUM_ERROR               0x01
+#define ERROR_CODE_INVALID_COMMAND              0x02
+#define ERROR_CODE_INVALID_PARAM                0x03
+#define ERROR_CODE_IIC_WRITE_ERROR              0x04
+#define ERROR_CODE_IIC_READ_ERROR               0x05
+#define ERROR_CODE_WRITE_USB_ERROR              0x06
+#define ERROR_CODE_WAIT_RESPONSE_TIMEOUT        0x07
+#define ERROR_CODE_PACKET_RE_ERROR              0x08
+#define ERROR_CODE_NO_DEVICE                    0x09
+#define ERROR_CODE_WAIT_WRITE_TIMEOUT           0x0a
+#define ERROR_CODE_READ_USB_ERROR               0x0b
+#define ERROR_CODE_COMM_ERROR                   0x0c
+#define ERROR_CODE_ALLOCATE_BUFFER_ERROR        0x0d
+#define ERROR_CODE_DEVICE_OPENED                0x0e
+#define ERROR_CODE_DEVICE_CLOSED                0x0f
+
+/*-----------------------------------------------------------
+Test Status
+-----------------------------------------------------------*/
+#define RESULT_NULL                             0
+#define RESULT_PASS                             1
+#define RESULT_NG                               2
+#define RESULT_TESTING                          3
+#define RESULT_TBD                              4
+#define RESULT_REPLACE                          5
+#define RESULT_CONNECTING                       6
+
+/*-----------------------------------------------------------
+
+read write max bytes per time
+-----------------------------------------------------------*/
+
+#define BYTES_PER_TIME      128
+
+extern void (*OnInit_TestItem)(char *);
+extern void (*OnInit_BasicThreshold)(char *);
+extern void (*SetTestItem)(void);
+extern boolean (*Start_Test)(void);
+extern int (*Get_test_data)(char *);
+extern int (*Get_test_node_data)(int *, int , int, int );
+
+struct StruScreenSeting
+{
+    int iSelectedIC;// The current selection of IC
+    int iTxNum;
+    int iRxNum;
+    int isNormalize;
+    int iUsedMaxTxNum;//iTxNum <= iUsedMaxTxNum
+    int iUsedMaxRxNum;//iRxNum <= iUsedMaxRxNum
+
+    unsigned char iChannelsNum;//add for ft6x36
+    unsigned char iKeyNum;
+};
+extern struct StruScreenSeting g_ScreenSetParam; //set screen param
+struct stTestItem
+{
+    unsigned char ItemType;//Classification of test items   CfgItem, DataTestItem, GraphTestItem,
+    unsigned char TestNum;// Test number
+    unsigned char TestResult;//Test result, NG\PASS\TESTING
+    unsigned char ItemCode;//Test project name
+    //CString strItemName;//Test project name
+    //CString strRemark;//Notes
+};
+extern struct stTestItem g_stTestItem[1][MAX_TEST_ITEM];
+
+struct structSCapConfEx
+{
+    unsigned char ChannelXNum;
+    unsigned char ChannelYNum;
+    unsigned char KeyNum;
+    unsigned char KeyNumTotal;
+    bool bLeftKey1;
+    bool bLeftKey2;
+    bool bLeftKey3;
+    bool bRightKey1;
+    bool bRightKey2;
+    bool bRightKey3;
+};
+extern struct structSCapConfEx g_stSCapConfEx;
+
+enum NORMALIZE_Type
+{
+    Overall_Normalize = 0,
+    Auto_Normalize = 1,
+};
+
+enum PROOF_TYPE
+{
+    Proof_Normal,               //mode 0
+    Proof_Level0,                   //mode 1
+    Proof_NoWaterProof,       //mode 2
+};
+
+extern struct stCfg_MCap_DetailThreshold g_stCfg_MCap_DetailThreshold;
+extern struct stCfg_SCap_DetailThreshold g_stCfg_SCap_DetailThreshold;
+//extern struct structSCapConf g_stSCapConf;
+
+extern int g_TestItemNum;/*test item num*/
+extern char g_strIcName[20];/*IC Name*/
+extern char *g_pStoreAllData;
+
+int GetPrivateProfileString(char *section, char *ItemName, char *defaultvalue, char *returnValue, char *IniFile);
+void focal_msleep(int ms);
+void SysDelay(int ms);
+int focal_abs(int value);
+
+
+void OnInit_InterfaceCfg(char * strIniFile);
+
+int ReadReg(unsigned char RegAddr, unsigned char *RegData);
+int WriteReg(unsigned char RegAddr, unsigned char RegData);
+unsigned char Comm_Base_IIC_IO(unsigned char *pWriteBuffer, int  iBytesToWrite, unsigned char *pReadBuffer, int iBytesToRead);
+
+unsigned char EnterWork(void);
+unsigned char EnterFactory(void);
+
+void fts_SetTestItemCodeName(unsigned char ucitemcode);
+
+extern void *fts_malloc(size_t size);
+extern void fts_free(void *p);
+
+#define FOCAL_TEST_DEBUG_EN     0
+#if (FOCAL_TEST_DEBUG_EN)
+#define FTS_TEST_DBG(fmt, args...) do {printk("[FTS] %s.  "fmt"\n",  __FUNCTION__, ##args);} while (0)
+#define FTS_TEST_PRINT(fmt, args...) printk("" fmt, ## args)
+#else
+#define FTS_TEST_DBG(fmt, args...) do{}while(0)
+#define FTS_TEST_PRINT(fmt, args...) do{}while(0)
+#endif
+
+
+#endif

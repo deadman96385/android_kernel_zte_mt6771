@@ -1,0 +1,65 @@
+/*
+ * Copyright (C) 2015 MediaTek Inc.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ */
+
+/* Please set primary/secondary charger to corresponding I2C bus */
+&i2c1 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	psc5415a@6a {
+		compatible = "mediatek,swithing_charger";
+		status = "okay";
+		reg = <0x6a>;
+
+		pinctrl-names = "psc_chg_en_low",
+				"psc_chg_en_high";
+
+		pinctrl-0 = <&chg_en_low>;
+		pinctrl-1 = <&chg_en_high>;
+
+		/*
+		 * Charger name
+		 * Main charger: primary_chg
+		 * Slave charger: secondary_chg
+		 */
+		charger_name = "primary_chg";
+		alias_name = "psc5415a";
+		ichg = <1500000>; /* uA */
+		aicr = <500000>;  /* uA */
+		mivr = <4500000>; /* uV */
+		ieoc = <200000>;  /* uA */
+		cv = <4350000>; /* uV */
+		vmreg = <4350000>; /* uV */
+		enable_te;
+		enable_eoc_shdn;
+	};
+};
+
+&pio {
+	chg_en_low: chg_en_low {
+		pins_cmd_dat {
+			pins = <PINMUX_GPIO35__FUNC_GPIO35>;
+			slew-rate = <1>;
+			bias-disable;
+			output-low;
+		};
+	};
+
+	chg_en_high: chg_en_high {
+		pins_cmd_dat {
+			pins = <PINMUX_GPIO35__FUNC_GPIO35>;
+			slew-rate = <1>;
+			bias-disable;
+			output-high;
+		};
+	};
+};

@@ -1,0 +1,9 @@
+/*****************************************
+Do not modify dts file, please modify according dtsi file
+******************************************/
+
+#include "../mt6739.dts"
+#include "mtk_base_diff.dtsi"
+#include "psc5415a.dtsi"
+
+

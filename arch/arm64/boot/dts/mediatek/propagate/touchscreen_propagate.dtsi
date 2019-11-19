@@ -1,0 +1,41 @@
+&pio {
+	tp_int_input: eint@0 {
+		pins_cmd_dat {
+			pins = <PINMUX_GPIO6__FUNC_GPIO6>;
+			slew-rate = <0>;
+			bias-disable;
+		};
+	};
+
+	state_rst_output0: rstoutput0 {
+		pins_cmd_dat {
+			pins = <PINMUX_GPIO119__FUNC_GPIO119>;
+			slew-rate = <1>;
+			output-low;
+		};
+	};
+
+	state_rst_output1: rstoutput1 {
+		pins_cmd_dat {
+			pins = <PINMUX_GPIO119__FUNC_GPIO119>;
+			slew-rate = <1>;
+			output-high;
+		};
+	};
+
+};
+
+&i2c0 {
+	status = "okay";
+	focaltech@38 {
+		compatible = "focaltech,fts";
+		reg = <0x38>;
+		interrupt-parent = <&pio>;
+		vdd-supply = <&mt_pmic_vldo28_ldo_reg>;
+		focaltech,reset-gpio = <&pio 119 0x00>;
+		focaltech,irq-gpio = <&pio 6 0x00>;
+		focaltech,display-coords = <0 0 719 1439>;
+		focaltech,max-touch-number = <10>;
+	};
+};
+

@@ -1,0 +1,34 @@
+/*
+ * when you want to delete some nodes or property, modify this dtsi.
+ * some diff between mtk and zte durian.
+ */
+
+#include "../bat_setting/battery_protect_policy_080509200107.dtsi"
+
+/{
+	zte_misc: zte_misc {
+		status="okay";
+		compatible = "zte-misc";
+	};
+};
+
+&lk_charger {
+	/delete-property/ enable_pe_plus;
+};
+
+&charger {
+	/delete-property/ enable_pe_2;
+	/delete-property/ enable_pe_3;
+	/delete-property/ enable_pe_4;
+};
+&flashlights_mt6370{
+	/delete-node/ channel@2;
+};
+
+
+&reserved_memory {
+	reserve-memory-scp_share {
+		//size = <0 0x01400000>; /*20 MB share mem size */
+		size = <0 0x00C00000>; /* 12MB share mem size */
+	};
+};

@@ -1,3 +1,6 @@
+ifneq ($(ZTE_BOARD_NAME),)
+	dts-dirs += $(ZTE_BOARD_NAME)
+else
 dtb-$(CONFIG_ARCH_MEDIATEK) += mt8173-evb.dtb
 
 ifeq ($(strip $(CONFIG_BUILD_ARM64_APPENDED_DTB_IMAGE)), y)
@@ -6,6 +9,7 @@ endif
 
 ifeq ($(strip $(CONFIG_BUILD_ARM64_DTB_OVERLAY_IMAGE)), y)
 dtb-y += $(addsuffix .dtb, $(notdir $(subst $\",,$(CONFIG_BUILD_ARM64_DTB_OVERLAY_IMAGE_NAMES))))
+endif
 endif
 
 targets  += $(dtb-y)

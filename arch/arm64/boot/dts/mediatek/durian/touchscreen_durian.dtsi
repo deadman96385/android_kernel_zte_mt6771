@@ -1,0 +1,32 @@
+&i2c0 {
+	status = "okay";
+	focaltech@38 {
+		compatible = "focaltech,fts";
+		reg = <0x38>;
+		interrupt-parent = <&pio>;
+		interrupts = <8 IRQ_TYPE_EDGE_FALLING 8 0>;
+		focaltech,reset-gpio = <&pio 158 0x00>;
+		focaltech,irq-gpio = <&pio 8 0x00>;
+		focaltech,display-coords = <0 0 719 1559>;
+		focaltech,max-touch-number = <10>;
+	};
+
+	himax-ts@48 {
+		compatible = "himax,hxcommon";
+		reg = <0x48>;
+		interrupt-parent = <&pio>;
+		interrupts = <8 IRQ_TYPE_EDGE_FALLING 8 0>;
+		himax,panel-coords = <0 719 0 1559>;
+		himax,display-coords = <0 719 0 1559>;
+		himax,irq-gpio = <&pio 8 0x00>;
+		himax,rst-gpio = <&pio 158 0x00>;
+		report_type = <1>;
+	};
+
+	ilitek@41 {
+		compatible = "tchip,ilitek";
+		reg  = <0x41>;
+		touch,irq-gpio = <&pio 8 0x00>;
+		touch,reset-gpio = <&pio 158 0x00>;
+	};
+};

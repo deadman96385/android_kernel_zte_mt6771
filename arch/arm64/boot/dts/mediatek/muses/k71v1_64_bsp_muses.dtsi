@@ -1,0 +1,101 @@
+/*
+ * Copyright (C) 2016 MediaTek Inc.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
+ */
+/*ZTE DTSI modify file*/
+
+&i2c3 {
+		nfc@29 {
+				status = "okay";
+		nxp,pn544-fw-dwnld = <&pio 25 0x0>;
+		nxp,pn544-ven = <&pio 26 0x0>;
+		nxp,pn544-irq = <&pio 28 0x0>;
+				gpio-rst = <26>;
+				gpio-rst-std = <&pio 26 0x0>;
+				gpio-irq = <28>;
+				gpio-irq-std = <&pio 28 0x0>;
+		};
+
+};
+/* NFC start */
+&nfc {
+		compatible = "mediatek,nfc";
+		gpio-rst = <26>;
+		gpio-rst-std = <&pio 26 0x0>;
+		gpio-irq = <28>;
+		gpio-irq-std = <&pio 28 0x0>;
+};
+
+&irq_nfc {
+		compatible = "mediatek,irq_nfc-eint";
+};
+/* NFC end */
+
+&mt6370_pmu {
+	bled {
+		compatible = "mediatek,mt6370_pmu_bled";
+		interrupt-names = "bled_ocp";
+		mt,bled_name = "mt6370_pmu_bled";
+		//mt,ext_en_pin;
+		mt,chan_en  = <0xf>; /* bit 0 1 2 3 -> chan 1 2 3 4 */
+		mt,map_linear;
+		mt,bl_ovp_level = <3>; /* 0 17v, 1 21v, 2 25v, 3 29v */
+		mt,bl_ocp_level = <2>; /* 0 900mA, 1 1200mA, 2 1500mA, 3 1800mA */
+		mt,use_pwm;
+		mt,pwm_fsample = <2>; /* 0 1MHz, 1 4MHz, 2 or 3 24mHz */
+		mt,pwm_deglitch = <1>; /* 0 no filter, 1 100ns, 2 160ns, 3 200ns */
+		mt,pwm_avg_cycle = <0>; /* 0 disable avg, 1 avg 2 cycle, 2 avg 4 cycle */
+					/* 3 avg 8 cycle, 4 avg 16 cycle, 5 avg 32 cycle */
+		mt,bled_ramptime = <3>; /* 0, 500us, 750us, 1ms, 2ms, 5ms, 10ms, 20ms */
+					/* 50ms, 100ms, 250ms, 800ms, 1s, 2s, 4s, 8s */
+		mt,bled_flash_ramp = <1>; /* 0, 500us, 750us, 1ms, 2ms, 5ms */
+		mt,max_bled_brightness = <656>; /* we have 11 bit resolution, quantize in driver */
+						/* maximum 2047 */
+	};
+	dsv {
+		compatible = "mediatek,mt6370_pmu_dsv";
+		interrupt-names = "dsv_vneg_ocp",
+				  "dsv_bst_ocp", "dsv_vneg_scp",
+				  "dsv_vpos_scp";
+		db_ext_en = <0>;  /* 0 = i2c ctrl; 1 = ext pin */
+		db_periodic_fix = <0>; /* 1 = prevent from voltage drop when db is restart */
+		db_single_pin = <0>; /* 0 => VOS & VNEG are ctrled by DB_ENP & DB_ENN; 1 : single pin ctrl*/
+		db_freq_pm = <0>; /*  0 = 20Hz ; 1 = 33Hz; valid if db_period_mode = 1 */
+		db_periodic_mode = <0>; /* 0 = always on if DB is enabled; 1 = DB period mode */
+		db_startup = <0>; /* 0 = close loop, wait 80%; 1 = open loop, go after soft-start dimming */
+		db_vneg_20ms = <1>; /* 1 = DB VNEG discharge 20ms when shutdown; 0 = disable */
+		db_vneg_disc = <0>; /*  1 = Discharge VNEG when turn off; 0 = disable */
+		db_vpos_20ms = <1>; /* 1 = DB VPOS discharge 20ms when shutdown; 0 = disable */
+		db_vpos_disc = <1>; /*  1 = Discharge VPOS when turn off; 0 = disable */
+		db_delay = <3>; /* 0 = no constraint; 1 = 0 ms; 2 = 1 ms; 3 = 4 ms */
+		db_vbst  = <6200>; /* mV */
+		db_vpos_slew = <1>; /* 0 : 8.46 V/ms; 1 : 5.79 V/ms; 2: 3.87 V/ms; 3: 2.97V/ms */
+		db_vneg_slew = <1>; /* 0: -9.24V/ms; 1: -5.97V/ms; 2: -4.82V/ms; 3: -3.07V/ms*/
+		mt6370_dsvp {
+			regulator-name = "dsv_pos"; /* change name by yourself */
+			regulator-min-microvolt = <4000000>;
+			regulator-max-microvolt = <6000000>; /* max == min then apply_uV = 1 */
+			/* regulator-microvolt-offset = < 0>; optional*/
+			/* regulator-boot-on = "yes"; optional, exist = enabled */
+			/* regulator-always-on = "yes"; optional, exist = enabled */
+			/* regulator-ramp-delay = <100>; optional*/
+		};
+		mt6370_dsvn {
+			regulator-name = "dsv_neg"; /* change name by yourself */
+			regulator-min-microvolt = <4000000>;
+			regulator-max-microvolt = <6000000>; /* max == min then apply_uV = 1 */
+			/* regulator-microvolt-offset = < 0>; optional*/
+			/* regulator-boot-on = "yes"; optional, exist = enabled */
+			/* regulator-always-on = "yes"; optional, exist = enabled */
+			/* regulator-ramp-delay = <100>; optional*/
+		};
+	};
+};

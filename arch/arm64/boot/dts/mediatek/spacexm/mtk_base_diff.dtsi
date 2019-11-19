@@ -1,0 +1,112 @@
+/*
+ * when you want to delete some nodes or property, modify this dtsi.
+ * some diff between mtk and zte.
+ */
+
+/ {
+ hall: hall {
+		compatible = "hall_sensor,hall_ic";
+		status="okay";
+		hall_sensor,gpio_irq = <&pio 7 0>;
+		interrupt-parent = <&pio>;
+	};
+
+	zte_misc: zte_misc {
+		status="okay";
+		compatible = "zte-misc";
+	};
+
+	charger_policy_service {
+		compatible = "zte,charger-policy-service";
+		status="okay";
+		policy,enable = <1>;
+		policy,expired-mode-enable = <1>;
+		policy,retry-times = <10>;
+		policy,timeout-seconds = <64800>;/* 18 hours */
+		policy,max-capacity = <70>;
+		policy,min-capacity = <50>;
+		policy,demo-max-capacity = <35>;
+		policy,demo-min-capacity = <30>;
+		policy,bms-phy-name = "battery";
+		policy,battery-phy-name = "charger";
+	};
+
+	batt_cap_learn {
+		compatible = "zte,battery-capacity-learning";
+		bcl,enable = <1>;
+		bcl,retry-times = <10>;
+		bcl,timer-period = <100>;/*ms*/
+		bcl,max-start-capacity = <30>;
+		bcl,max-temp-decidegc = <450>;
+		bcl,min-temp-decidegc = <150>;
+		bcl,max-limit-deciperc = <100>;
+		bcl,min-limit-deciperc = <50>;
+		bcl,max-increment-deciperc = <50>;
+		bcl,max-decrement-deciperc = <100>;
+		bcl,bms-phy-name = "charger";
+		bcl,battery-phy-name = "battery";
+		/*bit7: 0: use zte algorithm calc age; 1: use platform algorithm calc age*/
+		/*bit4: enable zte algorithm*/
+		/*bit3: enable platform algorithm*/
+		/*bit0: platform algorithm mode 0: integral mode; 1: delta mode*/
+		bcl,algorithm-select = <0x89>;
+		bcl,battery-specify-capacity = <3100000>;
+		bcl,battery-specify-voltage = <4390>;
+
+		bcl_battery_count0 {
+			bcl,battery-id = <0>;
+
+			/*3.4V-3.0V 0.2C delta capacity*/
+			/*age 150ma 768ma(0.2C) 1300ma*/
+			bcl,disch-curr-volt-prop = <100 64 193 393
+							86 82 258 412>;
+
+			/*current: 0.04C - 0.02C delta*/
+			bcl,topoff-prop = <100 50
+					86 72 >;
+
+			/*reduc voltage  50mv 100mv*/
+			bcl,reduc-volt-prop = <100 193 366
+						86 230 396 >;
+		};
+
+		bcl_battery_count1 {
+			bcl,battery-id = <1>;
+
+			/*age 150ma 768ma(0.2C) 1300ma*/
+			bcl,disch-curr-volt-prop = <100 68 195 398
+							83 85 250 415>;
+
+			/*current: 0.04C - 0.02C delta*/
+			bcl,topoff-prop = <100 55
+					83 78 >;
+
+			/*reduc voltage  50mv 100mv*/
+			bcl,reduc-volt-prop = <100 193 366
+						83 235 398 >;
+		};
+	};
+
+	/delete-node/ ssusb_ip_sleep;
+
+	gce@10238000 {
+		mipitx0_base = <0x11e50000 99 0xffff0000>;
+	};
+};
+
+&lk_charger {
+	/delete-property/ enable_pe_plus;
+};
+
+&charger {
+	/delete-property/ enable_pe_2;
+	/delete-property/ enable_pe_3;
+	/delete-property/ enable_pe_4;
+};
+
+&reserved_memory {
+	reserve-memory-scp_share {
+		//size = <0 0x01400000>; /*20 MB share mem size */
+		size = <0 0x00C00000>; /* 12MB share mem size */
+	};
+};

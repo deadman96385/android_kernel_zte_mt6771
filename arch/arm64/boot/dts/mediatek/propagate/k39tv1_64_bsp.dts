@@ -32,14 +32,14 @@
 	};
 	led0:led@0 {
 		compatible = "mediatek,red";
-		led_mode = <0>;
+		led_mode = <3>;
 		data = <1>;
 		pwm_config = <0 0 0 0 0>;
 	};
 	led1:led@1 {
 		compatible = "mediatek,green";
-		led_mode = <0>;
-		data = <1>;
+		led_mode = <3>;
+		data = <2>;
 		pwm_config = <0 0 0 0 0>;
 	};
 	led2:led@2 {
@@ -70,7 +70,7 @@
 		compatible = "mediatek,lcd-backlight";
 		led_mode = <5>;
 		data = <1>;
-		pwm_config = <0 2 0 0 0>;
+		pwm_config = <1 3 0 0 0>;
 	};
 	vibrator0:vibrator@0 {
 		compatible = "mediatek,vibrator";
@@ -82,24 +82,16 @@
 
 &i2c1 {
 /*  start sensor */
-	gsensor@4c {
+	gsensor@69 {
 		i2c_num	= <1>;
-		direction = <6>;
+		i2c_addr = <0x69 0>;
+		direction = <5>;
+		direction_cp = <6>;
 		power_id = <0xffff>;
 		power_vol = <0>;
 		firlen = <16>;
-		is_batch_supported = <1>;
-	};
-
-	msensor@0c {
-		i2c_num = <1>;
-		i2c_addr = <0x0d 0 0 0>;
-		direction = <8>;
-		power_id = <0xffff>;
-		power_vol = <0>;
 		is_batch_supported = <0>;
 	};
-
 	gyro@68 {
 		pinctrl-names = "pin_default", "pin_cfg";
 		pinctrl-0 = <&gyro_intpin_default>;
@@ -107,42 +99,50 @@
 		i2c_num = <1>;
 		i2c_addr = <0x68 0 0 0>;
 		direction = <5>;
+		direction_cp = <6>;
 		power_id = <0xffff>;
 		power_vol = <0>;
 		firlen = <0>;
 		is_batch_supported = <0>;
 	};
 
-	alsps@51 {
+	alsps@23 {
 		pinctrl-names = "pin_default", "pin_cfg";
 		pinctrl-0 = <&alsps_intpin_default>;
 		pinctrl-1 = <&alsps_intpin_cfg>;
 		status = "okay";
 		/* customization */
 		i2c_num = <1>;
-		i2c_addr = <0x51 0 0 0>;
+		i2c_addr = <0x23 0 0 0>;
 		polling_mode_ps = <0>;
 		polling_mode_als = <1>;
 		power_id = <0xffff>;
 		power_vol = <0>;
 		als_level = <0 328 861 1377 3125 7721 7767 12621 23062 28430 33274 47116 57694 57694 65535>;
 		als_value = <0 133 304 502 1004 2005 3058 5005 8008 10010 12000 16000 20000 20000 20000 20000>;
-		ps_threshold_high = <26>;
-		ps_threshold_low = <21>;
+		ps_threshold_high = <150>;
+		ps_threshold_low = <100>;
 		is_batch_supported_ps = <0>;
 		is_batch_supported_als = <0>;
 	};
+/* end sensor */
+};
 
-	barometer@77 {
+&i2c1 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	accgyro@6B {
+		compatible = "st,lsm6dse";
+		reg = <0x6B>;
+		status = "okay";
 		i2c_num = <1>;
-		i2c_addr = <0x77 0 0 0>;
-		direction = <0>;
+		i2c_addr = <0x6B 0>;
+		direction = <5>;
 		power_id = <0xffff>;
 		power_vol = <0>;
-		firlen = <32>;
+		firlen = <16>;
 		is_batch_supported = <0>;
 	};
-/* end sensor */
 };
 
 /* sensor gpio standization */
@@ -242,11 +242,11 @@
 /* accdet start */
 &accdet {
 	/* accdet micbias voltage: 0x07,2.7v;0x05,2.5v;0x02,1.9v */
-	accdet-mic-vol = <6>;
+	accdet-mic-vol = <7>;
 	headset-mode-setting = <0x500 0x500 1 0x1f0 0x800 0x800 0x20 0x44>;
 	accdet-plugout-debounce = <1>;
 	/*1:ACC mode, 2:low cost without in bias, 6:low cost with in bias*/
-	accdet-mic-mode = <2>;
+	accdet-mic-mode = <1>;
 	/* eint_level_trigger: 8,LEVEL_LOW(default);4,LEVEL_HIGH;others,LEVEL_LOW */
 	headset-eint-level-pol = <8>;
 	/*0--MD_MAX--UP_MAX--DW_MAX*/
@@ -254,22 +254,7 @@
 	headset-three-key-threshold-CDD = <0 121 192 600>;
 	/*0--MD_MAX--VOICE_MAX--UP_MAX--DW_MAX*/
 	headset-four-key-threshold = <0 58 121 192 400>;
-	/* ACCDET GPIO standardization ACC mode no use */
-	pinctrl-names = "default", "state_eint_as_int";
-	pinctrl-0 = <&accdet_pins_default>;
-	pinctrl-1 = <&accdet_pins_eint_as_int>;
 	status = "okay";
-};
-&pio {
-	accdet_pins_default: accdetdefault {
-	};
-	accdet_pins_eint_as_int: accdeteint@0 {
-		pins_cmd_dat {
-			/*pins = <PINMUX_GPIO11__FUNC_GPIO11>;*/
-			slew-rate = <0>;
-			bias-disable;
-		};
-	};
 };
 /* accdet end */
 /* CONSYS GPIO standardization */
@@ -395,68 +380,7 @@
 	};
 };/* UART GPIO end */
 
-/* TOUCH start */
-&touch {
-	tpd-resolution = <720 1280>;
-	use-tpd-button = <0>;
-	tpd-key-num = <3>;
-	tpd-key-local= <139 172 158 0>;
-	tpd-key-dim-local = <90 883 100 40 230 883 100 40 370 883 100 40 0 0 0 0>;
-	tpd-max-touch-num = <5>;
-	tpd-filter-enable = <1>;
-	tpd-filter-pixel-density = <106>;
-	tpd-filter-custom-prameters = <0 0 0 0 0 0 0 0 0 0 0 0>;
-	tpd-filter-custom-speed = <0 0 0>;
-	pinctrl-names = "default", "state_eint_as_int", "state_eint_output0", "state_eint_output1",
-		"state_rst_output0", "state_rst_output1";
-	pinctrl-0 = <&ctp_pins_default>;
-	pinctrl-1 = <&ctp_pins_eint_as_int>;
-	pinctrl-2 = <&ctp_pins_eint_output0>;
-	pinctrl-3 = <&ctp_pins_eint_output1>;
-	pinctrl-4 = <&ctp_pins_rst_output0>;
-	pinctrl-5 = <&ctp_pins_rst_output1>;
-	status = "okay";
-};
-&pio {
-	ctp_pins_default: eint0default {
-	};
-	ctp_pins_eint_as_int: eint@0 {
-		pins_cmd_dat {
-			pins = <PINMUX_GPIO6__FUNC_GPIO6>;
-			slew-rate = <0>;
-			bias-disable;
-		};
-	};
-	ctp_pins_eint_output0: eintoutput0 {
-		pins_cmd_dat {
-			pins = <PINMUX_GPIO6__FUNC_GPIO6>;
-			slew-rate = <1>;
-			output-low;
-		};
-	};
-	ctp_pins_eint_output1: eintoutput1 {
-		pins_cmd_dat {
-			pins = <PINMUX_GPIO6__FUNC_GPIO6>;
-			slew-rate = <1>;
-			output-high;
-		};
-	};
-	ctp_pins_rst_output0: rstoutput0 {
-		pins_cmd_dat {
-			pins = <PINMUX_GPIO119__FUNC_GPIO119>;
-			slew-rate = <1>;
-			output-low;
-		};
-	};
-	ctp_pins_rst_output1: rstoutput1 {
-		pins_cmd_dat {
-			pins = <PINMUX_GPIO119__FUNC_GPIO119>;
-			slew-rate = <1>;
-			output-high;
-		};
-	};
-};
-/* TOUCH end */
+
 
 /* NFC start */
 &nfc {
@@ -596,6 +520,35 @@
 
 };
 /* CAMERA GPIO end */
+/*Flashlight GPIO begin*/
+&pio {
+	flashlights_aw3648_pins_default:default {
+	};
+	flashlights_aw3648_pins_hwen_high:hwen_high {
+		pins_cmd_dat {
+			pins = <PINMUX_GPIO10__FUNC_GPIO10>;
+			slew-rate = <1>;
+			output-high;
+		};
+	};
+	flashlights_aw3648_pins_hwen_low:hwen_low {
+		pins_cmd_dat {
+			pins = <PINMUX_GPIO10__FUNC_GPIO10>;
+			slew-rate = <1>;
+			output-low;
+		};
+	};
+};
+
+&flashlights_aw3648 {
+	pinctrl-names = "default", "hwen_high", "hwen_low";
+	pinctrl-0 = <&flashlights_aw3648_pins_default>;
+	pinctrl-1 = <&flashlights_aw3648_pins_hwen_high>;
+	pinctrl-2 = <&flashlights_aw3648_pins_hwen_low>;
+	status = "okay";
+};
+
+/*Flashlight GPIO end*/
 
 /* AUDIO GPIO standardization */
 &audgpio {
@@ -680,5 +633,90 @@
 
 };
 /* AUDIO end */
-#include <k39tv1_64_bsp/cust.dtsi>
+#include <k39tv1_64_bsp_propagate/cust.dtsi>
+#include "touchscreen_propagate.dtsi"
+#include "fingerprint_propagate.dtsi"
 
+&charger {
+	enable_sw_jeita;
+	/* common */
+	battery_cv = <4350000>;/* for psc5415 4.36 is 4.35, sy6923d1 set 4.34*/
+	max_charger_voltage = <5950000>;
+	min_charger_voltage = <4600000>;
+
+	/* charging current */
+	/* Rsens = 56 mohm*/
+	ac_charger_current = <1000000>;
+
+	/* iterm_current = <121000>; */
+	/* sw jeita */
+	jeita_temp_above_t4_cv_voltage = <4100000>;
+	jeita_temp_t3_to_t4_cv_voltage = <4100000>;
+	jeita_temp_t2_to_t3_cv_voltage = <4350000>;
+	jeita_temp_t1_to_t2_cv_voltage = <4350000>;
+	jeita_temp_t0_to_t1_cv_voltage = <4350000>;
+	jeita_temp_below_t0_cv_current = <4350000>;
+
+	jeita_temp_above_t4_chg_current = <0>;
+	jeita_temp_t3_to_t4_chg_current = <700000>;
+	jeita_temp_t2_to_t3_chg_current = <1000000>;
+	jeita_temp_t1_to_t2_chg_current = <600000>;
+	jeita_temp_t0_to_t1_chg_current = <600000>;
+	jeita_temp_below_t0_chg_current = <0>;
+
+	temp_t4_threshold = <55>;
+	temp_t4_thres_minus_x_degree = <53>;
+	temp_t3_threshold = <45>;
+	temp_t3_thres_minus_x_degree = <43>;
+	temp_t2_threshold = <15>;
+	temp_t2_thres_plus_x_degree = <17>;
+	temp_t1_threshold = <5>;
+	temp_t1_thres_plus_x_degree = <7>;
+	temp_t0_threshold = <0>;
+	temp_t0_thres_plus_x_degree = <2>;
+	temp_neg_10_threshold = <0>;
+
+	/* battery temperature protection */
+	enable_min_charge_temperature;
+	min_charge_temperature = <0>;
+	min_charge_temperature_plus_x_degree = <2>;
+	max_charge_temperature = <55>;
+	max_charge_temperature_minus_x_degree = <53>;
+};
+
+&bat_gm30 {
+	BATT_FULL_DESIGN_CAPACITY = <(2600)>;
+	DIFFERENCE_FULLOCV_ITH = <(140)>;
+	KEEP_100_PERCENT = <(3)>;
+	CAR_TUNE_VALUE = <(98)>;
+	TEMPERATURE_T0 = <(50)>;
+	TEMPERATURE_T1 = <(25)>;
+	TEMPERATURE_T2 = <(0)>;
+	TEMPERATURE_T3 = <(-10)>;
+	g_FG_PSEUDO100_T0 = <(99)>;
+	g_FG_PSEUDO100_T1 = <(99)>;
+	g_FG_PSEUDO100_T2 = <(99)>;
+	g_FG_PSEUDO100_T3 = <(99)>;
+
+	Q_MAX_SYS_VOLTAGE_BAT0 = <(3400)>;
+	Q_MAX_SYS_VOLTAGE_BAT1 = <(3400)>;
+	Q_MAX_SYS_VOLTAGE_BAT2 = <(3400)>;
+	Q_MAX_SYS_VOLTAGE_BAT3 = <(3400)>;
+
+	#include "../bat_setting/mt6739_battery_table_2600mah_P639F10_tianmao.dtsi"
+	#include "../bat_setting/mt6739_battery_table_2600mah_P639F10_jiade.dtsi"
+
+	/* bat_id_pull_up_r = 390K bat_id_pull_up_volt = 1.8V */
+	bat_num = <(2)>;
+	bat_0 {
+		compatible = "jiade_47K_4v35_2600mAh";
+		bat_type = "bat0_jiade_47K_4v35_2600mAh";
+		bat_id_uv = <(193593)>;
+	};
+
+	bat_1 {
+		compatible = "tianmao_390K_4v35_2600mAh";
+		bat_type = "bat1_tianmao_390K_4v35_2600mAh";
+		bat_id_uv = <(900000)>;
+	};
+};

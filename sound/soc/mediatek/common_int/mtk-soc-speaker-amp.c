@@ -29,6 +29,14 @@
 #include "../../codecs/rt5509.h"
 #endif
 
+#if defined(CONFIG_SND_SOC_AW8891)
+#include "../../codecs/aw8891/aw8891.h"
+#endif
+
+#if defined(CONFIG_SND_SOC_TFA98XX)
+#include "../../codecs/tfa98xx/tfa.h"
+#endif
+
 static unsigned int mtk_spk_type;
 static struct mtk_spk_i2c_ctrl mtk_spk_list[MTK_SPK_TYPE_NUM] = {
 	[MTK_SPK_NOT_SMARTPA] = {
@@ -42,6 +50,22 @@ static struct mtk_spk_i2c_ctrl mtk_spk_list[MTK_SPK_TYPE_NUM] = {
 		.i2c_shutdown = rt5509_i2c_shutdown,
 		.codec_dai_name = "rt5509-aif1",
 		.codec_name = "RT5509_MT_0",
+	},
+#endif
+#if defined(CONFIG_SND_SOC_AW8891)
+	[MTK_SPK_AWINIC_AW8891] = {
+		.i2c_probe = aw8891_i2c_probe,
+		.i2c_remove = aw8891_i2c_remove,
+		.codec_dai_name = "aw8891-aif",
+		.codec_name = "speaker_amp.6-0034",
+	},
+#endif
+#if defined(CONFIG_SND_SOC_TFA98XX)
+	[MTK_SPK_NXP_TFA9890] = {
+		.i2c_probe = tfa98xx_i2c_probe,
+		.i2c_remove = tfa98xx_i2c_remove,
+		.codec_dai_name = "tfa98xx-aif-6-34",
+		.codec_name = "speaker_amp.6-0034",
 	},
 #endif
 };
@@ -96,6 +120,10 @@ EXPORT_SYMBOL(mtk_spk_get_type);
 int mtk_spk_update_dai_link(struct snd_soc_dai_link *mtk_spk_dai_link,
 			    struct platform_device *pdev)
 {
+#if defined(CONFIG_SND_SOC_AW8898)
+	return 0;
+
+#else
 	struct snd_soc_dai_link *dai_link = mtk_spk_dai_link;
 
 	dev_info(&pdev->dev, "%s(), mtk_spk_type %d\n",
@@ -114,6 +142,7 @@ int mtk_spk_update_dai_link(struct snd_soc_dai_link *mtk_spk_dai_link,
 		 dai_link[0].codec_name);
 
 	return 0;
+#endif
 }
 EXPORT_SYMBOL(mtk_spk_update_dai_link);
 

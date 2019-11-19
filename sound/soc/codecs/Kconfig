@@ -940,3 +940,18 @@ config SND_SOC_MAX98926
 	  for max98926 codec,enable this config will
 	  add max98926 codec driver.
 
+config SND_SOC_AW8891
+	tristate "SoC Audio for awinic aw8891 series"
+	depends on I2C
+	help
+	  This option enables support for aw8891 series Smart PA.
+
+config SND_SOC_AW8898
+	tristate "SoC Audio for awinic aw8898 series"
+	depends on I2C
+	help
+	  This option enables support for aw8898 series Smart PA.
+
+config SND_SOC_TFA98XX
+	tristate "NXP TFA98XX smart amplifier"
+	depends on I2C

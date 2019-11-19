@@ -82,6 +82,9 @@ static int SetDcCompenSation(bool enable);
 #endif
 static void Voice_Amp_Change(bool enable);
 static void Speaker_Amp_Change(bool enable);
+#if defined(CONFIG_ZTE_RCV_SPK_ANA_SWITCH)
+static void Receiver_Speaker_Switch_Change(bool enable);
+#endif
 static struct mt6357_codec_priv *mCodec_data;
 static unsigned int mBlockSampleRate[AUDIO_ANALOG_DEVICE_INOUT_MAX] = {
 	48000, 48000, 48000 };
@@ -180,6 +183,8 @@ int (*set_hp_impedance_ctl)(bool enable) = NULL;
 /* @} Build pass: */
 #define SOC_HIGH_USE_RATE	(SNDRV_PCM_RATE_CONTINUOUS |\
 				 SNDRV_PCM_RATE_8000_192000)
+#define EXT_SPK_AMP_DEFAULT_MODE 3
+static int mAudioExtSpeakerAmpMode = EXT_SPK_AMP_DEFAULT_MODE;
 static void Audio_Amp_Change(int channels, bool enable);
 static void SavePowerState(void)
 {
@@ -3114,6 +3119,9 @@ static void Voice_Amp_Change(bool enable)
 {
 	if (enable) {
 		if (GetDLStatus() == false) {
+		#if defined(CONFIG_ZTE_RCV_SPK_ANA_SWITCH)
+			Receiver_Speaker_Switch_Change(true);
+		#endif
 			TurnOnDacPower(AUDIO_ANALOG_DEVICE_OUT_EARPIECEL);
 			pr_debug("%s(), amp on\n", __func__);
 			/* Disable headphone short-circuit protection */
@@ -3207,6 +3215,9 @@ static void Voice_Amp_Change(bool enable)
 			/* Disable NCP */
 			Ana_Set_Reg(AUDNCP_CLKDIV_CON3, 0x1, 0x1);
 			TurnOffDacPower();
+		#if defined(CONFIG_ZTE_RCV_SPK_ANA_SWITCH)
+			Receiver_Speaker_Switch_Change(false);
+		#endif
 		}
 		Ana_Set_Reg(AUDDEC_ANA_CON3, 0x0000, 0x1 << 2);
 	}
@@ -3242,6 +3253,10 @@ static int Voice_Amp_Set(struct snd_kcontrol *kcontrol, struct snd_ctl_elem_valu
 static void Speaker_Amp_Change(bool enable)
 {
 	if (enable) {
+#if defined(CONFIG_ZTE_RCV_SPK_ANA_SWITCH)
+		/* config rcv_speaker_switch gpio pins, set initial state : RCVSPK_LOW */
+		Receiver_Speaker_Switch_Change(false);
+#endif
 		if (GetDLStatus() == false)
 			TurnOnDacPower(AUDIO_ANALOG_DEVICE_OUT_SPEAKERL);
 		pr_debug("%s(), enable %d\n", __func__, enable);
@@ -3366,14 +3381,14 @@ static void Ext_Speaker_Amp_Change(bool enable)
 	pr_debug("%s(), enable %d\n", __func__, enable);
 #define SPK_WARM_UP_TIME        (25)	/* unit is ms */
 	if (enable) {
-		AudDrv_GPIO_EXTAMP_Select(false, 3);
+		AudDrv_GPIO_EXTAMP_Select(false, mAudioExtSpeakerAmpMode);
 		/*udelay(1000); */
 		usleep_range(1 * 1000, 2 * 1000);
-		AudDrv_GPIO_EXTAMP_Select(true, 3);
+		AudDrv_GPIO_EXTAMP_Select(true, mAudioExtSpeakerAmpMode);
 		/* msleep(SPK_WARM_UP_TIME); */
 		usleep_range(5 * 1000, 10 * 1000);
 	} else {
-		AudDrv_GPIO_EXTAMP_Select(false, 3);
+		AudDrv_GPIO_EXTAMP_Select(false, mAudioExtSpeakerAmpMode);
 		udelay(500);
 	}
 }
@@ -3402,7 +3417,7 @@ static void Receiver_Speaker_Switch_Change(bool enable)
 {
 #ifndef CONFIG_FPGA_EARLY_PORTING
 #ifdef CONFIG_OF
-	pr_debug("%s\n", __func__);
+	pr_info("%s\n", __func__);
 	if (enable)
 		AudDrv_GPIO_RCVSPK_Select(true);
 	else
@@ -5346,6 +5361,31 @@ static int dc_trim_thread(void *arg)
 	do_exit(0);
 	return 0;
 }
+const struct of_device_id ext_speaker_amp_info_of_match[] = {
+	{ .compatible = "zte,ext-speaker-amp-info", },
+	{},
+};
+
+static int mt6358_codec_get_dts_data(void)
+{
+	struct device_node *node = NULL;
+	unsigned int ext_spk_amp_mode = 0;
+	int ret = 0;
+
+	node = of_find_matching_node(node, ext_speaker_amp_info_of_match);
+	if (node) {
+		ret = of_property_read_u32(node, "zte,ext-spk-amp-mode", &ext_spk_amp_mode);
+		if (!ret) {
+			mAudioExtSpeakerAmpMode = ext_spk_amp_mode;
+			pr_err("%s ext spk amp mode is %d\n", __func__, ext_spk_amp_mode);
+		} else {
+			pr_err("%s can't find zte,ext-spk-amp-mode node\n", __func__);
+		}
+	} else {
+		pr_err("%s can't find compatible dts node\n", __func__);
+	}
+	return 0;
+}
 static int mt6357_codec_probe(struct snd_soc_codec *codec)
 {
 	int ret;
@@ -5353,6 +5393,7 @@ static int mt6357_codec_probe(struct snd_soc_codec *codec)
 	pr_debug("%s()\n", __func__);
 	if (mInitCodec == true)
 		return 0;
+	mt6358_codec_get_dts_data();
 	/* add codec controls */
 	snd_soc_add_codec_controls(codec, mt6357_snd_controls, ARRAY_SIZE(mt6357_snd_controls));
 	snd_soc_add_codec_controls(codec, mt6357_UL_Codec_controls,

@@ -300,6 +300,9 @@ static const unsigned short Headset_MIC_DCC_PeriodicOnOff[7][22] = {
 #endif
 static int mAudio_VOW_Mic_type = AUDIO_VOW_MIC_TYPE_Handset_AMIC;
 
+#define EXT_SPK_AMP_DEFAULT_MODE 3
+static int mAudioExtSpeakerAmpMode = EXT_SPK_AMP_DEFAULT_MODE;
+
 static void Audio_Amp_Change(int channels, bool enable);
 static void SavePowerState(void)
 {
@@ -3886,13 +3889,14 @@ static void Ext_Speaker_Amp_Change(bool enable)
 #define SPK_WARM_UP_TIME        (25)	/* unit is ms */
 	if (enable) {
 		pr_debug("Ext_Speaker_Amp_Change ON+\n");
+		pr_debug("Ext_Speaker_Amp_Change mode=%d\n", mAudioExtSpeakerAmpMode);
 
-		AudDrv_GPIO_EXTAMP_Select(false, 3);
+		AudDrv_GPIO_EXTAMP_Select(false, mAudioExtSpeakerAmpMode);
 
 		/*udelay(1000); */
 		usleep_range(1 * 1000, 20 * 1000);
 
-		AudDrv_GPIO_EXTAMP_Select(true, 3);
+		AudDrv_GPIO_EXTAMP_Select(true, mAudioExtSpeakerAmpMode);
 
 		msleep(SPK_WARM_UP_TIME);
 
@@ -3900,7 +3904,7 @@ static void Ext_Speaker_Amp_Change(bool enable)
 	} else {
 		pr_debug("Ext_Speaker_Amp_Change OFF+\n");
 
-		AudDrv_GPIO_EXTAMP_Select(false, 3);
+		AudDrv_GPIO_EXTAMP_Select(false, mAudioExtSpeakerAmpMode);
 
 		udelay(500);
 
@@ -7227,6 +7231,32 @@ static int dc_trim_thread(void *arg)
 	return 0;
 }
 
+const struct of_device_id ext_speaker_amp_info_of_match[] = {
+	{ .compatible = "zte,ext-speaker-amp-info", },
+	{},
+};
+
+static int mt6358_codec_get_dts_data(void)
+{
+	struct device_node *node = NULL;
+	unsigned int ext_spk_amp_mode = 0;
+	int ret = 0;
+
+	node = of_find_matching_node(node, ext_speaker_amp_info_of_match);
+	if (node) {
+		ret = of_property_read_u32(node, "zte,ext-spk-amp-mode", &ext_spk_amp_mode);
+		if (!ret) {
+			mAudioExtSpeakerAmpMode = ext_spk_amp_mode;
+			pr_err("%s ext spk amp mode is %d\n", __func__, ext_spk_amp_mode);
+		} else {
+			pr_err("%s can't find zte,ext-spk-amp-mode node\n", __func__);
+		}
+	} else {
+		pr_err("%s can't find compatible dts node\n", __func__);
+	}
+	return 0;
+}
+
 static int mt6358_codec_probe(struct snd_soc_codec *codec)
 {
 	struct snd_soc_dapm_context *dapm = &codec->component.dapm;
@@ -7236,6 +7266,8 @@ static int mt6358_codec_probe(struct snd_soc_codec *codec)
 
 	if (mInitCodec == true)
 		return 0;
+
+	mt6358_codec_get_dts_data();
 
 	snd_soc_dapm_new_controls(dapm, mt6358_dapm_widgets, ARRAY_SIZE(mt6358_dapm_widgets));
 	snd_soc_dapm_add_routes(dapm, mtk_audio_map, ARRAY_SIZE(mtk_audio_map));

@@ -218,6 +218,27 @@ static int capture_use_adc2_for_ch1_ch2_set(struct snd_kcontrol *kcontrol,
 	return 0;
 }
 
+/* add by ZTE for mtk bargin begin */
+static int capture_mode = 0;
+static int capture_get_barge_In(struct snd_kcontrol *kcontrol,
+				       struct snd_ctl_elem_value *ucontrol)
+{
+	ucontrol->value.enumerated.item[0] =
+				capture_mode;
+
+	return 0;
+}
+
+static int capture_put_barge_In(struct snd_kcontrol *kcontrol,
+				struct snd_ctl_elem_value *ucontrol)
+{
+	capture_mode = ucontrol->value.enumerated.item[0];
+	pr_warn("capture_put_Barge_In %d\n", capture_mode);
+
+	return 0;
+}
+/* add by ZTE for mtk bargin end */
+
 static const struct snd_kcontrol_new Audio_snd_capture_controls[] = {
 	SOC_ENUM_EXT("Audio_capture_hd_Switch", Audio_capture_Enum[0],
 		     Audio_capture_hdinput_Get, Audio_capture_hdinput_Set),
@@ -226,6 +247,8 @@ static const struct snd_kcontrol_new Audio_snd_capture_controls[] = {
 	SOC_ENUM_EXT("capture_use_adc2_for_ch1_ch2", Audio_capture_Enum[0],
 		     capture_use_adc2_for_ch1_ch2_get,
 		     capture_use_adc2_for_ch1_ch2_set),
+	SOC_SINGLE_EXT("Audio Capture Barge In", SND_SOC_NOPM, 0, 1, 0,
+		     capture_get_barge_In, capture_put_barge_In),
 };
 
 static struct snd_pcm_hardware mtk_capture_hardware = {
@@ -449,6 +472,13 @@ static int mtk_capture_pcm_close(struct snd_pcm_substream *substream)
 					  Soc_Aud_AFE_IO_Block_ADDA_UL, cap_mem_blk_io);
 		}
 
+		/* add by ZTE for mtk bargin begin */
+		if (capture_mode != 0) {
+			SetConnection(Soc_Aud_InterCon_DisConnect,
+					  Soc_Aud_InterConnectionInput_I06, Soc_Aud_InterConnectionOutput_O22);
+		}
+		/* add by ZTE for mtk bargin end */
+
 		RemoveMemifSubStream(cap_mem_blk, substream);
 
 		EnableAfe(false);
@@ -462,6 +492,15 @@ static int mtk_capture_pcm_close(struct snd_pcm_substream *substream)
 static int mtk_capture_alsa_start(struct snd_pcm_substream *substream)
 {
 	pr_warn("%s\n", __func__);
+
+	/* add by ZTE for mtk bargin begin */
+	if (capture_mode != 0) {
+		SetConnection(Soc_Aud_InterCon_DisConnect,
+				Soc_Aud_InterConnectionInput_I04, Soc_Aud_InterConnectionOutput_O22);
+		SetConnection(Soc_Aud_InterCon_Connection,
+				Soc_Aud_InterConnectionInput_I06, Soc_Aud_InterConnectionOutput_O22);
+	}
+	/* add by ZTE for mtk bargin end */
 
 	/* here to set interrupt */
 	irq_add_substream_user(substream,

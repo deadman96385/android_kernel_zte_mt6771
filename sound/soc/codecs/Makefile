@@ -403,3 +403,14 @@ ifeq ($(CONFIG_SND_SOC_MT6358),y)
   MTK_PLATFORM := $(subst ",,$(CONFIG_MTK_PLATFORM))
   subdir-ccflags-y += -Werror -I$(srctree)/drivers/misc/mediatek/include/mt-plat/$(MTK_PLATFORM)/include
 endif
+
+# for AWINIC AW8891 Smart PA
+snd-soc-aw8891-objs := aw8891/aw8891.o
+obj-$(CONFIG_SND_SOC_AW8891) += snd-soc-aw8891.o
+
+# for AWINIC AW8898 Smart PA
+snd-soc-aw8898-objs := aw8898/aw8898.o
+obj-$(CONFIG_SND_SOC_AW8898) += snd-soc-aw8898.o
+
+# for NXP TFA98xx Smart PA
+obj-$(CONFIG_SND_SOC_TFA98XX) += tfa98xx/

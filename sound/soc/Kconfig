@@ -36,6 +36,9 @@ config SND_SOC_COMPRESS
 config SND_SOC_TOPOLOGY
 	bool
 
+config ZTE_RCV_SPK_ANA_SWITCH
+	tristate "ZTE_RCV_SPK_ANA_SWITCH"
+
 # All the supported SoCs
 source "sound/soc/adi/Kconfig"
 source "sound/soc/atmel/Kconfig"

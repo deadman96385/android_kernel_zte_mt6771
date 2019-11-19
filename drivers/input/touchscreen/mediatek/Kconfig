@@ -21,6 +21,8 @@ config TOUCHSCREEN_MTK
 	  To compile this dirver as a module, choose M here: the
 	  module will be called.
 
+if TOUCHSCREEN_MTK
+
 config TOUCHSCREEN_PHYSICAL_ROTATION_WITH_LCM
 	bool "MediaTek Touch Panel Rotation With LCM"
 	default y
@@ -122,4 +124,26 @@ config TOUCHSCREEN_MTK_NT36xxx
 
 source "drivers/input/touchscreen/mediatek/NT36xxx/Kconfig"
 
+config TOUCHSCREEN_FOCAL
+	bool "Focal for Mediatek package"
+	default n
+source "drivers/input/touchscreen/mediatek/focal_touch/Kconfig"
+
+config TOUCHSCREEN_SYNAPTICS_DSX
+	bool "Synaptics for Mediatek package"
+	default n
+source "drivers/input/touchscreen/mediatek/synaptics_dsx/Kconfig"
+
+config TOUCHSCREEN_HIMAX_CHIPSET
+	bool "Himax touchpanel CHIPSET"
+	depends on I2C
+	help
+	  Say Y here if you have a Himax CHIPSET touchscreen.
+	  HIMAX controllers are multi touch controllers which can
+	  report 10 touches at a time.
+
+          If unsure, say N.
+source "drivers/input/touchscreen/mediatek/hxchipset/Kconfig"
+
+endif
 endif

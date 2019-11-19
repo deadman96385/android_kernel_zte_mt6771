@@ -127,6 +127,12 @@ config USB_GADGET_STORAGE_NUM_BUFFERS
 	   a module parameter as well.
 	   If unsure, say 2.
 
+config USB_MAC
+	bool "MAC CDROM"
+	depends on USB_CONFIGFS
+	help
+	  ADD mac os cdrom
+
 source "drivers/usb/gadget/udc/Kconfig"
 
 #

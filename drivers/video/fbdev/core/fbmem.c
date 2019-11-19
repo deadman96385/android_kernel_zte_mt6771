@@ -1064,6 +1064,7 @@ fb_blank(struct fb_info *info, int blank)
 	event.info = info;
 	event.data = &blank;
 
+	pr_info("%s: disp blank=%d start\n", __func__, blank);
 	early_ret = fb_notifier_call_chain(FB_EARLY_EVENT_BLANK, &event);
 
 	if (info->fbops->fb_blank)
@@ -1080,6 +1081,7 @@ fb_blank(struct fb_info *info, int blank)
 			fb_notifier_call_chain(FB_R_EARLY_EVENT_BLANK, &event);
 	}
 
+	pr_info("%s: disp blank=%d end\n", __func__, blank);
  	return ret;
 }
 EXPORT_SYMBOL(fb_blank);

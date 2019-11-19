@@ -109,3 +109,11 @@ config MTK_EINT_MULTI_TRIGGER_DESIGN
 	  save pins for assignments.
 	  Which EINT pin is actually occupied by a GPIO
 	  is described in *pins and it is decided in run time.
+
+config GPIO_LCM_BL_PWM_CTL
+	bool "enable lcm backlight pwm control"
+	default n
+	help
+	  define GPIO_LCM_BL_PWM_CTL to enable lcm backlight pwm control.
+	  If you want to use lcm backlight pwm control, please make sure it is Y in xxx_defconfig.mk.
+	  If unsure, set N.

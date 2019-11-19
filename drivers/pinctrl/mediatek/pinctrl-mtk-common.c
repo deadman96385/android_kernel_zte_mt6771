@@ -45,6 +45,9 @@
 #define MAX_GPIO_MODE_PER_REG 5
 #define GPIO_MODE_BITS        3
 #define GPIO_MODE_PREFIX "GPIO"
+/*Add by zte for gpio print*/
+#define R0R1_STR_LENGTH 9
+/*Add by zte for gpio print end*/
 
 static const char * const mtk_gpio_functions[] = {
 	"func0", "func1", "func2", "func3",
@@ -1739,12 +1742,84 @@ static ssize_t mt_gpio_show_pin(struct device *dev, struct device_attribute *att
 	return len;
 }
 
+#ifdef CONFIG_GPIO_LCM_BL_PWM_CTL
+static int mtk_pmx_set_mode_ex(struct mtk_pinctrl *pctl,
+		unsigned long pin, unsigned long mode)
+{
+	unsigned int reg_addr;
+	unsigned char bit;
+	unsigned int val;
+	int ret;
+	unsigned int mask = (1L << GPIO_MODE_BITS) - 1;
+
+	if (pctl->devdata->pin_mode_grps)
+		return mtk_pinctrl_set_gpio_mode(pctl, pin, mode);
+	if (pctl->devdata->spec_set_gpio_mode) {
+			/* Used by smartphone projects */
+			ret = pctl->devdata->spec_set_gpio_mode(pin | 0x80000000, mode);
+			return 0;
+	}
+	reg_addr = ((pin / MAX_GPIO_MODE_PER_REG) << pctl->devdata->port_shf)
+				+ pctl->devdata->pinmux_offset;
+	bit = pin % MAX_GPIO_MODE_PER_REG;
+	mask <<= (GPIO_MODE_BITS * bit);
+	val = (mode << (GPIO_MODE_BITS * bit));
+
+	return regmap_update_bits(mtk_get_regmap(pctl, pin),
+		reg_addr, mask, val);
+}
+
+static int mtk_pmx_gpio_set_direction_ex(struct mtk_pinctrl *pctl,
+				struct pinctrl_gpio_range *range, unsigned offset,
+				bool input)
+{
+	unsigned int reg_addr;
+	unsigned int bit;
+
+	if (pctl->devdata->pin_dir_grps)
+		return mtk_pinctrl_set_gpio_direction(pctl, offset, !input);
+
+	if (pctl->devdata->mt_set_gpio_dir) {
+		/* Used by smartphone projects */
+		pctl->devdata->mt_set_gpio_dir(offset | 0x80000000, (!input));
+		return 0;
+	}
+
+	reg_addr = mtk_get_port(pctl, offset) + pctl->devdata->dir_offset;
+	bit = BIT(offset & 0xf);
+
+	if (input)
+		/* Different SoC has different alignment offset. */
+		reg_addr = CLR_ADDR(reg_addr, pctl);
+	else
+		reg_addr = SET_ADDR(reg_addr, pctl);
+
+	regmap_write(mtk_get_regmap(pctl, offset), reg_addr, bit);
+
+	return 0;
+}
+
+void mtk_gpio_set_mode_ex(unsigned long pin, unsigned long mode)
+{
+	mtk_pmx_set_mode_ex(pctl, pin, mode);
+}
+
+void mtk_gpio_out_value_ex(unsigned int offset, int value)
+{
+	mtk_pmx_gpio_set_direction_ex(pctl, NULL, offset, false);
+	mtk_gpio_set(pctl->chip, offset, value);
+}
+#endif
+
 #ifndef CONFIG_MTK_GPIO
+
+
 void gpio_dump_regs_range(int start, int end)
 {
 	struct gpio_chip *chip;
 	unsigned i;
 	int pull_val;
+	char r1r0[R0R1_STR_LENGTH];
 
 	if (!pctl) {
 		pr_err("pctl does not exist\n");
@@ -1752,8 +1827,6 @@ void gpio_dump_regs_range(int start, int end)
 	}
 
 	chip = pctl->chip;
-
-	pr_err("PIN: [MODE] [DIR] [DOUT] [DIN] [PULL_EN] [PULL_SEL] [IES] [SMT] [DRIVE] ( [R1] [R0] )\n");
 
 	if (start < 0) {
 		start = 0;
@@ -1763,10 +1836,14 @@ void gpio_dump_regs_range(int start, int end)
 	if (end > chip->ngpio - 1)
 		end = chip->ngpio - 1;
 
+	pr_err("[GPIO_NUM], [MODE], [DIR], [DOUT], [DIN], [PULL_EN], [PULL_SEL], [IES], [SMT], [DRIVE], [R1], [R0] )\n");
 	for (i = start; i <= end; i++) {
 		pull_val = mtk_pullsel_get(chip, i);
+		memset(r1r0, 0, R0R1_STR_LENGTH);
+		if ((pull_val & MTK_PUPD_R1R0_BIT_SUPPORT) && (pull_val >= 0))
+			snprintf(r1r0, R0R1_STR_LENGTH, "%4d,%4d", !!(pull_val&4), !!(pull_val&2));
 
-		pr_err("%4d: %d%d%d%d%d%d%d%d%d",
+		pr_err("%4d,%4d,%4d,%4d,%4d,%4d,%4d,%4d,%4d,%4d,%s\n",
 			i,
 			mtk_pinmux_get(chip, i),
 			!mtk_gpio_get_direction(chip, i),
@@ -1776,11 +1853,9 @@ void gpio_dump_regs_range(int start, int end)
 			(pull_val >= 0) ? (pull_val&1) : -1,
 			mtk_ies_get(chip, i),
 			mtk_smt_get(chip, i),
-			mtk_driving_get(chip, i));
-		if ((pull_val & MTK_PUPD_R1R0_BIT_SUPPORT) && (pull_val >= 0))
-			pr_err(" %d %d\n", !!(pull_val&4), !!(pull_val&2));
-		else
-			pr_err("\n");
+			mtk_driving_get(chip, i),
+			r1r0
+			);
 	}
 }
 

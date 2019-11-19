@@ -70,6 +70,9 @@ static u32 in_lowmem;
 #define ENABLE_AMR_RAMSIZE	(0x40000)	/* > 1GB */
 #endif
 
+/* ZTE_ALMK_RAMSIZE per size 4K*/
+#define ZTE_ALMK_RAMSIZE 153600
+
 static short lowmem_debug_adj;	/* default: 0 */
 #ifdef CONFIG_MTK_ENG_BUILD
 #ifdef CONFIG_MTK_AEE_FEATURE
@@ -329,7 +332,7 @@ static unsigned long lowmem_scan(struct shrinker *s, struct shrink_control *sc)
 		to_be_aggressive = 0;
 	} else {
 		i = lowmem_adj_size - 1 - to_be_aggressive;
-		if (to_be_aggressive > 0 && i >= 0)
+		if (to_be_aggressive > 0 && i >= 0 && other_file < ZTE_ALMK_RAMSIZE)
 			amr_adj = lowmem_adj[i];
 	}
 #endif

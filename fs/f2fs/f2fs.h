@@ -656,6 +656,9 @@ enum {
 #define FADVISE_KEEP_SIZE_BIT	0x10
 #define FADVISE_HOT_BIT		0x20
 #define FADVISE_VERITY_BIT	0x40	/* reserved */
+/*ZTE_MODIFY start, add hint for allocate blocks from reserved segments*/
+#define FADVISE_USE_RESERVED_BLOKS 0x80
+/*ZTE_MODIFY end*/
 
 #define file_is_cold(inode)	is_file(inode, FADVISE_COLD_BIT)
 #define file_wrong_pino(inode)	is_file(inode, FADVISE_LOST_PINO_BIT)
@@ -673,6 +676,11 @@ enum {
 #define file_is_hot(inode)	is_file(inode, FADVISE_HOT_BIT)
 #define file_set_hot(inode)	set_file(inode, FADVISE_HOT_BIT)
 #define file_clear_hot(inode)	clear_file(inode, FADVISE_HOT_BIT)
+/*ZTE_MODIFY start, add macros related with FADVISE_USE_RESERVED_BLOKS*/
+#define file_use_reserved_block(inode)	is_file(inode, FADVISE_USE_RESERVED_BLOKS)
+#define file_set_reserved_block(inode)	set_file(inode, FADVISE_USE_RESERVED_BLOKS)
+#define file_clear_reserved_block(inode)	clear_file(inode, FADVISE_USE_RESERVED_BLOKS)
+/*ZTE_MODIFY end*/
 
 #define DEF_DIR_LEVEL		0
 
@@ -1418,6 +1426,24 @@ static inline struct f2fs_inode_info *F2FS_I(struct inode *inode)
 	return container_of(inode, struct f2fs_inode_info, vfs_inode);
 }
 
+/*ZTE_MODIFY start, add hint for allocate blocks from reserved segments*/
+static inline int is_file(struct inode *inode, int type)
+{
+	return F2FS_I(inode)->i_advise & type;
+}
+
+static inline void set_file(struct inode *inode, int type)
+{
+	F2FS_I(inode)->i_advise |= type;
+	f2fs_mark_inode_dirty_sync(inode, true);
+}
+
+static inline void clear_file(struct inode *inode, int type)
+{
+	F2FS_I(inode)->i_advise &= ~type;
+	f2fs_mark_inode_dirty_sync(inode, true);
+}
+/* end modify */
 static inline struct f2fs_sb_info *F2FS_SB(struct super_block *sb)
 {
 	return sb->s_fs_info;
@@ -1682,9 +1708,17 @@ static inline bool __allow_reserved_blocks(struct f2fs_sb_info *sbi,
 		return true;
 	if (uid_eq(F2FS_OPTION(sbi).s_resuid, current_fsuid()))
 		return true;
+
+
+	if (file_use_reserved_block(inode)) {
+		return true;
+	}
+
 	if (!gid_eq(F2FS_OPTION(sbi).s_resgid, GLOBAL_ROOT_GID) &&
 					in_group_p(F2FS_OPTION(sbi).s_resgid))
 		return true;
+
+
 	if (cap && capable(CAP_SYS_RESOURCE))
 		return true;
 	return false;
@@ -2499,23 +2533,6 @@ static inline int f2fs_has_inline_dentry(struct inode *inode)
 	return is_inode_flag_set(inode, FI_INLINE_DENTRY);
 }
 
-static inline int is_file(struct inode *inode, int type)
-{
-	return F2FS_I(inode)->i_advise & type;
-}
-
-static inline void set_file(struct inode *inode, int type)
-{
-	F2FS_I(inode)->i_advise |= type;
-	f2fs_mark_inode_dirty_sync(inode, true);
-}
-
-static inline void clear_file(struct inode *inode, int type)
-{
-	F2FS_I(inode)->i_advise &= ~type;
-	f2fs_mark_inode_dirty_sync(inode, true);
-}
-
 static inline bool f2fs_skip_inode_update(struct inode *inode, int dsync)
 {
 	bool ret;
@@ -3026,7 +3043,7 @@ struct f2fs_stat_info {
 	unsigned int valid_count, valid_node_count, valid_inode_count, discard_blks;
 	unsigned int bimodal, avg_vblocks;
 	int util_free, util_valid, util_invalid;
-	int rsvd_segs, overp_segs;
+	int rsvd_segs, overp_segs, root_rsvd_segs;
 	int dirty_count, node_pages, meta_pages;
 	int prefree_count, call_count, cp_count, bg_cp_count;
 	int tot_segs, node_segs, data_segs, free_segs, free_secs;

@@ -23,6 +23,17 @@
 #include "acl.h"
 #include <trace/events/f2fs.h>
 
+/*ZTE_MODIFY start, specify file types that can allocate blocks from reserved segments*/
+const char *reserved_block_files_types[] = {
+	"db",
+	"db-journal",
+	"db-wal",
+	"db-shm",
+	"xml",
+	NULL
+};
+/*ZTE_MODIFI end*/
+
 static struct inode *f2fs_new_inode(struct inode *dir, umode_t mode)
 {
 	struct f2fs_sb_info *sbi = F2FS_I_SB(dir);
@@ -259,6 +270,48 @@ int update_extension_list(struct f2fs_sb_info *sbi, const char *name,
 	return 0;
 }
 
+/*ZTE_MODIFY start, determine whether file can allocate blocks from reserved segments*/
+static int is_reserved_block_file(const unsigned char *s, const char *sub)
+{
+	size_t slen = strlen(s);
+	size_t sublen = strlen(sub);
+	int i;
+
+	/*
+	* filename format of multimedia file should be defined as:
+	* "filename + '.' + extension + (optional: '.' + temp extension)".
+	*/
+	if (slen < sublen + 2)
+		return 0;
+
+	for (i = 1; i < slen - sublen; i++) {
+		if (s[i] != '.')
+			continue;
+		if (!strncasecmp(s + i + 1, sub, sublen))
+			return 1;
+	}
+
+	return 0;
+}
+
+/*
+* Set database,xml etc files as files which can allocate blocks from reserved segments
+* when there is not enough blocks left for non-root users
+*/
+static inline void set_reserved_block_files(struct f2fs_sb_info *sbi, struct inode *inode,
+		const unsigned char *name)
+{
+	int i;
+
+	for (i = 0; reserved_block_files_types[i] != NULL; i++) {
+		if (is_reserved_block_file(name, reserved_block_files_types[i])) {
+			file_set_reserved_block(inode);
+			break;
+		}
+	}
+}
+/*ZTE_MODIFI end*/
+
 static int f2fs_create(struct inode *dir, struct dentry *dentry, umode_t mode,
 						bool excl)
 {
@@ -280,6 +333,13 @@ static int f2fs_create(struct inode *dir, struct dentry *dentry, umode_t mode,
 
 	if (!test_opt(sbi, DISABLE_EXT_IDENTIFY))
 		set_file_temperature(sbi, inode, dentry->d_name.name);
+
+	/*
+	* ZTE_MODIFI start, determine whether the file can allocate blocks from reserved segments
+	* according to its postfix
+	*/
+	set_reserved_block_files(sbi, inode, dentry->d_name.name);
+	/*ZTE_MODIFY end*/
 
 	inode->i_op = &f2fs_file_inode_operations;
 	inode->i_fop = &f2fs_file_operations;

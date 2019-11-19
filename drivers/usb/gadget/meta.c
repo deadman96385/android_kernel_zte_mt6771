@@ -176,6 +176,9 @@ static void android_work(struct work_struct *data)
 	char *disconnected[2] = { "USB_STATE=DISCONNECTED", NULL };
 	char *connected[2]    = { "USB_STATE=CONNECTED", NULL };
 	char *configured[2]   = { "USB_STATE=CONFIGURED", NULL };
+	/* Add for HW/SW connect */
+	char *hwdisconnected[2] = { "USB_STATE=HWDISCONNECTED", NULL };
+	bool is_hwconnected = true;
 	char **uevent_envp = NULL;
 	unsigned long flags;
 
@@ -183,6 +186,12 @@ static void android_work(struct work_struct *data)
 		pr_notice("android_work, !cdev\n");
 		return;
 	}
+
+	/* be aware this could not be used in non-sleep context */
+	if (usb_cable_connected())
+		is_hwconnected = true;
+	else
+		is_hwconnected = false;
 
 	spin_lock_irqsave(&cdev->lock, flags);
 	if (cdev->config)
@@ -194,7 +203,7 @@ static void android_work(struct work_struct *data)
 
 	if (uevent_envp) {
 		kobject_uevent_env(&dev->dev->kobj, KOBJ_CHANGE, uevent_envp);
-		pr_notice("%s: sent uevent %s\n", __func__, uevent_envp[0]);
+		pr_notice("%s: sent uevent %s, is_hwconnected=%d\n", __func__, uevent_envp[0], is_hwconnected);
 #ifdef CONFIG_MTPROF
 		if (uevent_envp == configured) {
 			static int first_shot = 1;
@@ -206,8 +215,13 @@ static void android_work(struct work_struct *data)
 		}
 #endif
 	} else {
-		pr_notice("%s: did not send uevent (%d %d %p)\n", __func__,
-			 dev->connected, dev->sw_connected, cdev->config);
+		pr_notice("%s: did not send uevent (%d %d %p), is_hwconnected=%d\n", __func__,
+			 dev->connected, dev->sw_connected, cdev->config, is_hwconnected);
+	}
+
+	if (!is_hwconnected) {
+		kobject_uevent_env(&dev->dev->kobj, KOBJ_CHANGE, hwdisconnected);
+		pr_notice("[USB]%s: sent uevent %s\n", __func__, hwdisconnected[0]);
 	}
 }
 
@@ -1254,7 +1268,8 @@ void enable_meta_vcom(int mode)
 	if (mode == 1) {
 		strncpy(serial_string, "", sizeof(serial_string) - 1);
 		device_desc.idVendor = 0x0e8d;
-		device_desc.idProduct = 0x2007;
+		/* device_desc.idProduct = 0x2007; */
+		device_desc.idProduct = 0x2000;
 		device_desc.bDeviceClass = 0x02;
 
 		/*ttyGS0*/

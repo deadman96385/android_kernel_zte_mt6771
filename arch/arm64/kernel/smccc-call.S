@@ -14,6 +14,13 @@
 #include <linux/linkage.h>
 #include <asm/asm-offsets.h>
 
+#ifndef ARM_SMCCC_RES_X0_OFFS
+#define ARM_SMCCC_RES_X0_OFFS 0 /* offsetof(struct arm_smccc_res, a0)	// */
+#endif
+#ifndef ARM_SMCCC_RES_X2_OFFS
+#define ARM_SMCCC_RES_X2_OFFS 16 /* offsetof(struct arm_smccc_res, a2)	// */
+#endif
+
 	.macro SMCCC instr
 	.cfi_startproc
 	\instr	#0

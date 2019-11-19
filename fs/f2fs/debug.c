@@ -78,6 +78,9 @@ static void update_general_status(struct f2fs_sb_info *sbi)
 	si->total_count = (int)sbi->user_block_count / sbi->blocks_per_seg;
 	si->rsvd_segs = reserved_segments(sbi);
 	si->overp_segs = overprovision_segments(sbi);
+	/* zte-modify: let  root_reserved_blocks show in f2fs status, 20180927 */
+	si->root_rsvd_segs = le32_to_cpu(F2FS_OPTION(sbi).root_reserved_blocks) / sbi->blocks_per_seg;
+	/* end modify */
 	si->valid_count = valid_user_blocks(sbi);
 	si->discard_blks = discard_blocks(sbi);
 	si->valid_node_count = valid_node_count(sbi);
@@ -273,8 +276,10 @@ static int stat_show(struct seq_file *s, void *v)
 			   si->sit_area_segs, si->nat_area_segs);
 		seq_printf(s, "[SSA: %d] [MAIN: %d",
 			   si->ssa_area_segs, si->main_area_segs);
-		seq_printf(s, "(OverProv:%d Resv:%d)]\n\n",
-			   si->overp_segs, si->rsvd_segs);
+	    /* zte-modify: for show resv segment in status file,20180911 */
+		seq_printf(s, "(OverProv:%d Resv:%d RootResv:%d)]\n\n",
+			   si->overp_segs, si->rsvd_segs, si->root_rsvd_segs);
+		/* end modify */
 		if (test_opt(si->sbi, DISCARD))
 			seq_printf(s, "Utilization: %u%% (%u valid blocks, %u discard blocks)\n",
 				si->utilization, si->valid_count, si->discard_blks);

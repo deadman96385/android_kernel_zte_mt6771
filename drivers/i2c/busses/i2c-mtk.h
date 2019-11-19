@@ -96,7 +96,7 @@
 #define MAX_HS_STEP_CNT_DIV		8
 
 #define HALF_DUTY_CYCLE			50
-#define DUTY_CYCLE				45
+#define DUTY_CYCLE			33 /* change duty cycle to 33% */
 
 #define I2C_CONTROL_RS                  (0x1 << 1)
 #define I2C_CONTROL_DMA_EN              (0x1 << 2)

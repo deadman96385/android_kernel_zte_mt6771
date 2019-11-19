@@ -1086,7 +1086,9 @@ static int c_show(struct seq_file *m, void *v)
 	u32 cpuid;
 
 	/* a hint message to notify that some process reads /proc/cpuinfo */
+	/*
 	pr_err("Dump cpuinfo\n");
+	*/
 
 	for_each_online_cpu(i) {
 		/*

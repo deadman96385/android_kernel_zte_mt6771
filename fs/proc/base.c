@@ -1119,9 +1119,10 @@ static ssize_t oom_adj_write(struct file *file, const char __user *buf,
 	pr_warn_once("%s (%d): /proc/%d/oom_adj is deprecated, please use /proc/%d/oom_score_adj instead.\n",
 		  current->comm, task_pid_nr(current), task_pid_nr(task),
 		  task_pid_nr(task));
-
-	task->signal->oom_score_adj = oom_adj;
-	trace_oom_score_adj_update(task);
+	if (task->tgid == task->pid) {
+		task->signal->oom_score_adj = oom_adj;
+		trace_oom_score_adj_update(task);
+	}
 err_sighand:
 	unlock_task_sighand(task, &flags);
 err_task_lock:
@@ -1206,10 +1207,12 @@ static ssize_t oom_score_adj_write(struct file *file, const char __user *buf,
 		goto err_sighand;
 	}
 
-	task->signal->oom_score_adj = (short)oom_score_adj;
-	if (has_capability_noaudit(current, CAP_SYS_RESOURCE))
-		task->signal->oom_score_adj_min = (short)oom_score_adj;
-	trace_oom_score_adj_update(task);
+	if (task->tgid == task->pid) {
+		task->signal->oom_score_adj = (short)oom_score_adj;
+		if (has_capability_noaudit(current, CAP_SYS_RESOURCE))
+			task->signal->oom_score_adj_min = (short)oom_score_adj;
+		trace_oom_score_adj_update(task);
+	}
 
 err_sighand:
 	unlock_task_sighand(task, &flags);

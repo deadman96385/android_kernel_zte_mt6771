@@ -1636,4 +1636,10 @@ config RTC_DRV_GOLDFISH
 	  Goldfish is a code name for the virtual platform developed by Google
 	  for Android emulation.
 
+config ZTE_ADD_DIS_RTC_SYSFS
+	bool "add an sysfs item to disable rtc"
+	default n
+	---help---
+	  Before use this config, you need to add code on specific pmic driver.
+
 endif # RTC_CLASS

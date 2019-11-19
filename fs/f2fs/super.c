@@ -208,9 +208,10 @@ void f2fs_msg(struct super_block *sb, const char *level, const char *fmt, ...)
 
 static inline void limit_reserve_root(struct f2fs_sb_info *sbi)
 {
-	block_t limit = (sbi->user_block_count << 1) / 1000;
+    /* zte-modify: art will check imgspace when booting,need at least 50M, 20180927 */
+	block_t limit = ((sbi->user_block_count << 1) * 3) / 100;
 
-	/* limit is 0.2% */
+	/* limit is 6% */
 	if (test_opt(sbi, RESERVE_ROOT) &&
 			F2FS_OPTION(sbi).root_reserved_blocks > limit) {
 		F2FS_OPTION(sbi).root_reserved_blocks = limit;
@@ -218,6 +219,7 @@ static inline void limit_reserve_root(struct f2fs_sb_info *sbi)
 			"Reduce reserved blocks for root = %u",
 			F2FS_OPTION(sbi).root_reserved_blocks);
 	}
+    /* end modify */
 	if (!test_opt(sbi, RESERVE_ROOT) &&
 		(!uid_eq(F2FS_OPTION(sbi).s_resuid,
 				make_kuid(&init_user_ns, F2FS_DEF_RESUID)) ||
@@ -538,9 +540,14 @@ static int parse_options(struct super_block *sb, char *options)
 			if (args->from && match_int(args, &arg))
 				return -EINVAL;
 			if (test_opt(sbi, RESERVE_ROOT)) {
-				f2fs_msg(sb, KERN_INFO,
-					"Preserve previous reserve_root=%u",
-					F2FS_OPTION(sbi).root_reserved_blocks);
+				/* zte-modify: make root_reserved_blocks can adjust from fstab,20180927 */
+				if (F2FS_OPTION(sbi).root_reserved_blocks != arg) {
+					F2FS_OPTION(sbi).root_reserved_blocks = arg;
+					f2fs_msg(sb, KERN_INFO,
+						"Preserve previous reserve_root=%u",
+						F2FS_OPTION(sbi).root_reserved_blocks);
+				}
+				/* end modify */
 			} else {
 				F2FS_OPTION(sbi).root_reserved_blocks = arg;
 				set_opt(sbi, RESERVE_ROOT);
@@ -1328,6 +1335,13 @@ static int f2fs_show_options(struct seq_file *seq, struct dentry *root)
 		seq_puts(seq, ",prjquota");
 #endif
 	f2fs_show_quota_options(seq, sbi->sb);
+	/*ZTE_MODIFY start, show resuid and resgid mount options*/
+	if (!uid_eq(F2FS_OPTION(sbi).s_resuid, make_kuid(&init_user_ns, F2FS_DEF_RESUID)))
+		seq_printf(seq, ",resuid=%u", from_kuid_munged(&init_user_ns, F2FS_OPTION(sbi).s_resuid));
+
+	if (!gid_eq(F2FS_OPTION(sbi).s_resgid, make_kgid(&init_user_ns, F2FS_DEF_RESGID)))
+		seq_printf(seq, ",resgid=%u", from_kgid_munged(&init_user_ns, F2FS_OPTION(sbi).s_resgid));
+	/*ZTE_MODIFY end*/
 	if (F2FS_OPTION(sbi).whint_mode == WHINT_MODE_USER)
 		seq_printf(seq, ",whint_mode=%s", "user-based");
 	else if (F2FS_OPTION(sbi).whint_mode == WHINT_MODE_FS)

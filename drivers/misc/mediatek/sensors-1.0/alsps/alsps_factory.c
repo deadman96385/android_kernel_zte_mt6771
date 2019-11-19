@@ -220,10 +220,17 @@ static long alsps_factory_unlocked_ioctl(struct file *file, unsigned int cmd, un
 		}
 		return 0;
 	case ALSPS_PS_ENABLE_CALI:
-		if (alsps_factory.fops != NULL && alsps_factory.fops->ps_enable_calibration != NULL) {
+		if (alsps_factory.fops != NULL && alsps_factory.fops->ps_enable_calibration != NULL
+			&& alsps_factory.fops->ps_get_cali != NULL) {
 			err = alsps_factory.fops->ps_enable_calibration();
 			if (err < 0) {
 				ALSPS_PR_ERR("ALSPS_PS_ENABLE_CALI FAIL!\n");
+				return -EINVAL;
+			}
+
+			err = alsps_factory.fops->ps_get_cali(&data);
+			if (err < 0) {
+				ALSPS_PR_ERR("ALSPS_PS_GET_CALI FAIL!\n");
 				return -EINVAL;
 			}
 		} else {

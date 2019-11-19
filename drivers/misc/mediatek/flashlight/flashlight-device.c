@@ -20,9 +20,14 @@
 		/* {TYPE, CT, PART, "NAME", CHANNEL, DECOUPLE} */
 		{0, 0, 0, "flashlights_led191", 0, 0},
 		{1, 0, 0, "flashlights_led191", 1, 0},
-	};
-#else
-	const struct flashlight_device_id flashlight_id[] = {
+		};
+	#elif defined(CONFIG_MTK_FLASHLIGHT_AW3648)
+		const struct flashlight_device_id flashlight_id[] = {
+		/* {TYPE, CT, PART, "NAME", CHANNEL, DECOUPLE} */
+		{0, 0, 0, "flashlights-aw3648", 0, 0},
+		};
+	#else
+		const struct flashlight_device_id flashlight_id[] = {
 		/* {TYPE, CT, PART, "NAME", CHANNEL, DECOUPLE} */
 		{0, 0, 0, "flashlights-rt4505", 0, 0},
 	};
@@ -78,6 +83,11 @@ const struct flashlight_device_id flashlight_id[] = {
 const struct flashlight_device_id flashlight_id[] = {
 	/* {TYPE, CT, PART, "NAME", CHANNEL, DECOUPLE} */
 	{0, 0, 0, "flashlights-lm3642", 0, 0},
+};
+#elif defined(mt6771) && defined(V10SMART_SINGLE_FLASH)
+const struct flashlight_device_id flashlight_id[] = {
+	/* {TYPE, CT, PART, "NAME", CHANNEL, DECOUPLE} */
+	{0, 0, 0, "flashlights-mt6370", 0, 0},
 };
 #else
 const struct flashlight_device_id flashlight_id[] = {

@@ -17,3 +17,4 @@ subdir-ccflags-y += -Werror -I$(srctree)/drivers/misc/mediatek/base/power/$(MTK_
 endif
 
 obj-$(CONFIG_NFC_CHIP_SUPPORT) += st21nfc/
+obj-$(CONFIG_PN5XX_NFC) += pn5xx-i2c/

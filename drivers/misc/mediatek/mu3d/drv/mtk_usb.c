@@ -216,6 +216,8 @@ void mt_usb_connect(void)
 void mt_usb_disconnect(void)
 {
 	os_printk(K_INFO, "%s\n", __func__);
+
+	cable_mode = CABLE_MODE_NORMAL;
 	issue_connection_work(CONNECTION_OPS_DISC);
 }
 void mt_usb_reconnect(void)

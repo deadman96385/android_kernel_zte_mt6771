@@ -46,6 +46,11 @@
 #include "ddp_clkmgr.h"
 #include "primary_display.h"
 
+#ifdef CONFIG_ZTE_LCD_COMMON_FUNCTION
+#include "zte_lcd_common.h"
+extern void zte_lcd_common_func(LCM_DRIVER *lcm_drv, LCM_UTIL_FUNCS *utils);
+#endif
+
 /*****************************************************************************/
 enum {
 	PAD_D2P_V = 0,
@@ -174,6 +179,7 @@ struct DSI_CMDQ_REGS *DSI_CMDQ_REG[DSI_INTERFACE_NUM];
 struct DSI_VM_CMDQ_REGS *DSI_VM_CMD_REG[DSI_INTERFACE_NUM];
 
 static int def_data_rate;
+static int def_dsi_hbp;
 static int dsi_currect_mode;
 static int dsi_force_config;
 static int dsi0_te_enable = 1;
@@ -999,7 +1005,10 @@ void DSI_Config_VDO_Timing(enum DISP_MODULE_ENUM module, struct cmdqRecStruct *c
 
 		DSI_OUTREG32(cmdq, &DSI_REG[i]->DSI_HSA_WC,
 			     ALIGN_TO((horizontal_sync_active_byte), 4));
-		DSI_OUTREG32(cmdq, &DSI_REG[i]->DSI_HBP_WC,
+		if (def_dsi_hbp)
+			DSI_OUTREG32(cmdq, &DSI_REG[i]->DSI_HBP_WC, def_dsi_hbp);
+		else
+			DSI_OUTREG32(cmdq, &DSI_REG[i]->DSI_HBP_WC,
 			     ALIGN_TO((horizontal_backporch_byte), 4));
 		DSI_OUTREG32(cmdq, &DSI_REG[i]->DSI_HFP_WC,
 			     ALIGN_TO((horizontal_frontporch_byte), 4));
@@ -1744,7 +1753,7 @@ static void _dsi_phy_clk_setting_gce(enum DISP_MODULE_ENUM module,
 
 /* DSI_MIPI_clk_change
  */
-void DSI_MIPI_clk_change(enum DISP_MODULE_ENUM module, int clk)
+void DSI_MIPI_clk_change(enum DISP_MODULE_ENUM module, void *cmdq, int clk)
 {
 	unsigned int chg_status = 0;
 	unsigned int pcw_ratio = 0;
@@ -1791,35 +1800,66 @@ void DSI_MIPI_clk_change(enum DISP_MODULE_ENUM module, int clk)
 			tmp = ((pcw & 0xFF) << 24) | (((256 * (clk * pcw_ratio % 26) / 26) & 0xFF) << 16) |
 				(((256 * (256 * (clk * pcw_ratio % 26) % 26) / 26) & 0xFF) << 8) |
 				((256 * (256 * (256 * (clk * pcw_ratio % 26) % 26) % 26) / 26) & 0xFF);
-			MIPITX_OUTREG32(DSI_PHY_REG[i]+MIPITX_PLL_CON0, tmp);
+			DISP_REG_SET(cmdq, DSI_PHY_REG[i]+MIPITX_PLL_CON0, tmp);
 
-			MIPITX_OUTREGBIT(DSI_PHY_REG[i]+MIPITX_PLL_CON1, FLD_RG_DSI_PLL_POSDIV, posdiv);
+			DISP_REG_SET_FIELD(cmdq, FLD_RG_DSI_PLL_POSDIV, DSI_PHY_REG[i]+MIPITX_PLL_CON1, posdiv);
 
 			chg_status = MIPITX_INREGBIT(DSI_PHY_REG[i]+MIPITX_PLL_CON1, FLD_RG_DSI_PLL_SDM_PCW_CHG);
 
 			if (chg_status)
-				MIPITX_OUTREGBIT(DSI_PHY_REG[i]+MIPITX_PLL_CON1, FLD_RG_DSI_PLL_SDM_PCW_CHG, 0);
+				DISP_REG_SET_FIELD(cmdq, FLD_RG_DSI_PLL_SDM_PCW_CHG, DSI_PHY_REG[i]+MIPITX_PLL_CON1, 0);
 			else
-				MIPITX_OUTREGBIT(DSI_PHY_REG[i]+MIPITX_PLL_CON1, FLD_RG_DSI_PLL_SDM_PCW_CHG, 1);
+				DISP_REG_SET_FIELD(cmdq, FLD_RG_DSI_PLL_SDM_PCW_CHG, DSI_PHY_REG[i]+MIPITX_PLL_CON1, 1);
 		}
 	}
 }
 
 int mipi_clk_change(int msg, int en)
 {
+	struct cmdqRecStruct *handle = NULL;
+
 	DISPMSG("%s,msg=%d,en=%d\n", __func__, msg, en);
+
+	cmdqRecCreate(CMDQ_SCENARIO_PRIMARY_DISP, &handle);
+	cmdqRecReset(handle);
+
+	/* 2.wait mutex0_stream_eof: only used for video mode */
+	cmdqRecWaitNoClear(handle, CMDQ_EVENT_MUTEX0_STREAM_EOF);
 
 	if (en) {
 		def_data_rate = 1030;
-		DSI_MIPI_clk_change(DISP_MODULE_DSI0, 1030);
+		def_dsi_hbp = 0x32; /* adaptive HBP value */
+		DSI_MIPI_clk_change(DISP_MODULE_DSI0, handle, 1030);
+		ddp_dsi_porch_setting(DISP_MODULE_DSI0, handle, DSI_HBP, 0x32); /* adaptive HBP value */
 	} else {
 		LCM_DSI_PARAMS *dsi_params = &_dsi_context[0].dsi_params;
 		unsigned int data_rate = dsi_params->data_rate != 0 ?
 					 dsi_params->data_rate : dsi_params->PLL_CLOCK * 2;
-		def_data_rate = data_rate;
+		unsigned int dsiTmpBufBpp;
+		unsigned int hbp_wc;
 
-		DSI_MIPI_clk_change(DISP_MODULE_DSI0, data_rate);
+		if (dsi_params->data_format.format == LCM_DSI_FORMAT_RGB565)
+			dsiTmpBufBpp = 2;
+		else
+			dsiTmpBufBpp = 3;
+
+		if (dsi_params->mode == SYNC_EVENT_VDO_MODE || dsi_params->mode == BURST_VDO_MODE ||
+		    dsi_params->switch_mode == SYNC_EVENT_VDO_MODE || dsi_params->switch_mode == BURST_VDO_MODE) {
+			hbp_wc = ((dsi_params->horizontal_backporch +
+						      dsi_params->horizontal_sync_active) * dsiTmpBufBpp - 10);
+		} else {
+			hbp_wc = (dsi_params->horizontal_backporch * dsiTmpBufBpp - 10);
+		}
+		hbp_wc = ALIGN_TO((hbp_wc), 4);
+
+		def_data_rate = data_rate;
+		def_dsi_hbp = hbp_wc; /* origin HBP value */
+		DSI_MIPI_clk_change(DISP_MODULE_DSI0, handle, data_rate);
+		ddp_dsi_porch_setting(DISP_MODULE_DSI0, handle, DSI_HBP, hbp_wc); /* origin HBP value */
 	}
+
+	cmdqRecFlushAsync(handle);
+	cmdqRecDestroy(handle);
 	return 0;
 }
 
@@ -3310,6 +3350,10 @@ int ddp_dsi_set_lcm_utils(enum DISP_MODULE_ENUM module, LCM_DRIVER *lcm_drv)
 
 	lcm_drv->set_util_funcs(utils);
 
+#ifdef CONFIG_ZTE_LCD_COMMON_FUNCTION
+	zte_lcd_common_func(lcm_drv, utils);
+#endif
+
 	return 0;
 }
 
@@ -4588,6 +4632,9 @@ int ddp_dsi_build_cmdq(enum DISP_MODULE_ENUM module, void *cmdq_trigger_handle, 
 			t0.Data0 = dsi_params->lcm_esd_check_table[i].cmd;
 			/* 0xB0 is used to distinguish DCS cmd or Gerneric cmd, is that Right??? */
 			t0.Data_ID = (t0.Data0 < 0xB0) ? DSI_DCS_READ_PACKET_ID : DSI_GERNERIC_READ_LONG_PACKET_ID;
+			if (dsi_params->lcm_esd_check_table[i].count > 1) {
+				t0.Data_ID = DSI_GERNERIC_READ_LONG_PACKET_ID;
+			}
 			t0.Data1 = 0;
 
 			/* write DSI CMDQ */
@@ -4670,8 +4717,9 @@ int ddp_dsi_build_cmdq(enum DISP_MODULE_ENUM module, void *cmdq_trigger_handle, 
 				ret = 0; /* esd pass */
 			} else {
 				/* esd fail */
-				DDPPR_ERR("[DSI]cmp fail 0x%x != 0x%x\n",
-					read_data0.byte1, dsi_params->lcm_esd_check_table[i].para_list[0]);
+				DDPPR_ERR("[DSI]cmp fail 0x%x != 0x%x read_data0:0x%x 0x%x 0x%x 0x%x\n",
+					read_data0.byte1, dsi_params->lcm_esd_check_table[i].para_list[0],
+					read_data0.byte0, read_data0.byte1, read_data0.byte2, read_data0.byte3);
 				ret = 1;
 				break;
 			}

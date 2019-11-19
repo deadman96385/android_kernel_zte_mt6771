@@ -408,6 +408,8 @@ void parse_lcm_params_dt_node(struct device_node *np, LCM_PARAMS *lcm_params)
 			    &lcm_params->dsi.customization_esd_check_enable);
 	disp_of_getprop_u32(np, "lcm_params-dsi-esd_check_enable",
 			    &lcm_params->dsi.esd_check_enable);
+	disp_of_getprop_u32(np, "lcm-params-lcm-backlight-curve-mode",
+			    &lcm_params->dsi.lcm_backlight_curve_mode);
 
 	disp_of_getprop_u32(np, "lcm_params-dsi-lcm_int_te_monitor",
 			    &lcm_params->dsi.lcm_int_te_monitor);
@@ -884,6 +886,10 @@ void load_lcm_resources_from_DT(LCM_DRIVER *lcm_drv)
 }
 #endif
 
+#ifdef CONFIG_ZTE_LCD_BACKLIGHT_LEVEL_CURVE
+extern void set_lcm_backlight_curve_mode(int mode);
+#endif
+
 struct disp_lcm_handle *disp_lcm_probe(char *plcm_name, LCM_INTERFACE_ID lcm_id, int is_lcm_inited)
 {
 	int lcmindex = 0;
@@ -1016,6 +1022,10 @@ struct disp_lcm_handle *disp_lcm_probe(char *plcm_name, LCM_INTERFACE_ID lcm_id,
 		    && plcm->params->lcm_if == LCM_INTERFACE_NOTDEFINED)
 			plcm->lcm_if_id = LCM_INTERFACE_DBI0;
 
+#ifdef CONFIG_ZTE_LCD_BACKLIGHT_LEVEL_CURVE
+		set_lcm_backlight_curve_mode(plcm->params->dsi.lcm_backlight_curve_mode);
+#endif
+
 		if ((lcm_id == LCM_INTERFACE_NOTDEFINED) || lcm_id == plcm->lcm_if_id) {
 			plcm->lcm_original_width = plcm->params->width;
 			plcm->lcm_original_height = plcm->params->height;
@@ -1034,6 +1044,7 @@ FAIL:
 	kfree(lcm_param);
 	return NULL;
 }
+
 
 int disp_lcm_init(struct disp_lcm_handle *plcm, int force)
 {
@@ -1072,6 +1083,7 @@ int disp_lcm_init(struct disp_lcm_handle *plcm, int force)
 
 		}
 #endif
+
 		/* ddp_dsi_start(DISP_MODULE_DSI0, NULL); */
 		/* DSI_BIST_Pattern_Test(DISP_MODULE_DSI0,NULL,true, 0x00ffff00); */
 		return 0;

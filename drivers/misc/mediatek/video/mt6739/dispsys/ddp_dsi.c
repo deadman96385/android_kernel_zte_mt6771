@@ -3431,8 +3431,10 @@ int ddp_dsi_ioctl(enum DISP_MODULE_ENUM module, void *cmdq_handle, enum DDP_IOCT
 			if (params == NULL)
 				DDPERR("[ddp_dsi_ioctl] input pointer is NULL\n");
 			else {
+				#ifdef DEBUG_DDP
 				unsigned int *p = (unsigned int *)params;
 				unsigned int addr = p[0];
+				#endif
 
 				DDPMSG("[ddp_dsi_ioctl] DDP_DSI_PORCH_ADDR addr=0x%x\n", addr);
 				DSI_Get_Porch_Addr(module, params);

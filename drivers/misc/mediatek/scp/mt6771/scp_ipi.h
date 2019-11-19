@@ -62,6 +62,7 @@ enum ipi_id {
 	IPI_DO_SCP_MSG,
 	IPI_MET_SCP,
 	IPI_SCP_TIMER,
+	IPI_SCP_ERROR_INFO,
 	SCP_NR_IPI,
 };
 

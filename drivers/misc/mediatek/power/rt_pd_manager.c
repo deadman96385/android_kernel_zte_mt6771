@@ -24,6 +24,8 @@
 #include <linux/gpio.h>
 #include <linux/reboot.h>
 #include "tcpm.h"
+#include <linux/power_supply.h>
+#include <linux/delay.h>
 
 #include <mt-plat/upmu_common.h>
 #if CONFIG_MTK_GAUGE_VERSION == 30
@@ -70,7 +72,9 @@ static struct charger_consumer *chg_consumer;
 static void tcpc_mt_power_off(void)
 {
 #ifdef CONFIG_MTK_KERNEL_POWER_OFF_CHARGING
+#ifndef ZTE_FEATURE_PV_AR
 	kernel_power_off();
+#endif
 #endif /* CONFIG_MTK_KERNEL_POWER_OFF_CHARGING */
 }
 
@@ -120,8 +124,10 @@ void pd_chrdet_int_handler(void)
 
 		if (boot_mode == KERNEL_POWER_OFF_CHARGING_BOOT
 			|| boot_mode == LOW_POWER_OFF_CHARGING_BOOT) {
+#ifndef ZTE_FEATURE_PV_AR
 			pr_notice("[pd_chrdet_int_handler] Unplug Charger/USB\n");
 			kernel_power_off();
+#endif
 		}
 	}
 #endif
@@ -178,6 +184,30 @@ enum {
 bool mtk_is_pep30_en_unlock(void)
 {
 	return false;
+}
+
+static int pd_disable_charge_when_poweroff(void)
+{
+	int rc = 0;
+	union power_supply_propval value_prop = {0, };
+	struct power_supply *psy = power_supply_get_by_name("battery");
+
+	if (psy == NULL) {
+		pr_err("<BRD> %s get battery power supply failed!!!\n", __func__);
+		return -ENOTSUPP;
+	}
+
+	pr_info("<BRD> %s disable charge.\n", __func__);
+
+	value_prop.intval = POWER_SUPPLY_STATUS_DISCHARGING;
+
+	rc = power_supply_set_property(psy,
+				POWER_SUPPLY_PROP_STATUS, &value_prop);
+	if (rc < 0) {
+		pr_err("<BRD> Failed to set present property rc=%d\n", rc);
+	}
+
+	return rc;
 }
 
 static int pd_tcp_notifier_call(struct notifier_block *nb,
@@ -306,8 +336,10 @@ static int pd_tcp_notifier_call(struct notifier_block *nb,
 			&& noti->typec_state.new_state == TYPEC_UNATTACHED) {
 			if (tcpc_kpoc) {
 				vbus = battery_meter_get_charger_voltage();
-				pr_info("%s KPOC Plug out, vbus = %d\n",
+				pr_info("<BRD> %s KPOC Plug out, vbus = %d\n",
 					__func__, vbus);
+				pd_disable_charge_when_poweroff();
+				usleep_range(100000, 110000);/*wait 100ms to save data*/
 				tcpc_mt_power_off();
 				break;
 			}
@@ -341,8 +373,10 @@ static int pd_tcp_notifier_call(struct notifier_block *nb,
 			if (ret < 0) {
 				if (boot_mode == KERNEL_POWER_OFF_CHARGING_BOOT
 					|| boot_mode == LOW_POWER_OFF_CHARGING_BOOT) {
+#ifndef ZTE_FEATURE_PV_AR
 					pr_err("%s: notify chg detach fail, power off\n", __func__);
 					kernel_power_off();
+#endif
 				}
 			}
 #endif /* CONFIG_MTK_KERNEL_POWER_OFF_CHARGING */

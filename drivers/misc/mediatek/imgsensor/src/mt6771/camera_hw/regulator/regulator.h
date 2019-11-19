@@ -22,6 +22,10 @@
 #include "imgsensor_hw.h"
 #include "imgsensor_common.h"
 
+#if defined(S5K3L6_MIPI_RAW) || defined(OV16B10P671F50_MIPI_RAW)
+#define MT6358_PMIC_VCAMD 0x1EAE
+#endif
+
 enum REGULATOR_VOLTAGE {
 	REGULATOR_VOLTAGE_0    = 0,
 	REGULATOR_VOLTAGE_1000 = 1000000,

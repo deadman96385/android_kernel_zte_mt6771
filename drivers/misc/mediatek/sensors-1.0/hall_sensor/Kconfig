@@ -1,0 +1,7 @@
+
+config CUSTOM_KERNEL_HALL_SENSOR
+	bool "CUSTOM KERNEL HALL Config"
+	help
+	  To detect hall sensor
+
+

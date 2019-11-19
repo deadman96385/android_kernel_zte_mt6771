@@ -46971,6 +46971,7 @@ unsigned int mt6358_upmu_set_rg_ldo_vio28_en(unsigned int val)
 
 	return ret;
 }
+EXPORT_SYMBOL(mt6358_upmu_set_rg_ldo_vio28_en);
 
 unsigned int mt6358_upmu_get_rg_ldo_vio28_en(void)
 {

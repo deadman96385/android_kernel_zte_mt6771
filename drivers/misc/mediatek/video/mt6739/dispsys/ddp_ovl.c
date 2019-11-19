@@ -229,7 +229,9 @@ int ovl_roi(enum DISP_MODULE_ENUM module,
 }
 int disable_ovl_layers(enum DISP_MODULE_ENUM module, void *handle)
 {
+#ifdef DEBUG_DDP
 	int ovl_idx = ovl_to_index(module);
+#endif
 	/* physical layer control */
 	DISP_REG_SET(handle, ovl_base_addr(module) + DISP_REG_OVL_SRC_CON, 0);
 	/* ext layer control */

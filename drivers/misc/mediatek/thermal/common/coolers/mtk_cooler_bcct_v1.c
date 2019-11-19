@@ -346,11 +346,18 @@ static void chrlmt_set_limit_handler(struct work_struct *work)
 				, chrlmt_chr_input_curr_limit, chrlmt_bat_chr_curr_limit);
 
 #if (CONFIG_MTK_GAUGE_VERSION == 30)
+#ifdef CONFIG_ZTE_THERMAL_INPUTCHARGER_LIMIT
+		/* idx: 0 for main charger*/
+		charger_manager_set_input_current_limit(pthermal_consumer, 0,
+			((chrlmt_bat_chr_curr_limit != -1) ? chrlmt_bat_chr_curr_limit * 1000 : -1));
+		charger_manager_set_charging_current_limit(pthermal_consumer, 0, -1);
+#else
 		/* idx: 0 for main charger*/
 		charger_manager_set_input_current_limit(pthermal_consumer, 0,
 			((chrlmt_chr_input_curr_limit != -1) ? chrlmt_chr_input_curr_limit * 1000 : -1));
 		charger_manager_set_charging_current_limit(pthermal_consumer, 0,
 			((chrlmt_bat_chr_curr_limit != -1) ? chrlmt_bat_chr_curr_limit * 1000 : -1));
+#endif
 		/* High Voltage (Vbus) control*/
 		if (chrlmt_bat_chr_curr_limit == 0)
 			charger_manager_enable_high_voltage_charging(pthermal_consumer, false);
@@ -1310,9 +1317,33 @@ static int _cl_chrlmt_open(struct inode *inode, struct file *file)
 	return single_open(file, _cl_chrlmt_read, PDE_DATA(inode));
 }
 
+static ssize_t _cl_chrlmt_write(struct file *filp, const char __user *buf, size_t len, loff_t *data)
+{
+	int limit;
+	char tmp[128] = { 0 };
+
+	len = (len < (128 - 1)) ? len : (128 - 1);
+	/* write data to the buffer */
+	if (copy_from_user(tmp, buf, len))
+		return -EFAULT;
+
+	if (sscanf(tmp, "%d", &limit) >= 1) {
+		if (limit >= 65535 && limit < 0) {
+			chrlmt_set_limit(&cl_bcct_chrlmt_handle, -1, -1, -1);
+			mtk_cooler_bcct_dprintk("%s limit=-1\n", __func__);
+		} else {
+			chrlmt_set_limit(&cl_bcct_chrlmt_handle, -1, limit, -1);
+			mtk_cooler_bcct_dprintk("%s limit=%d\n", __func__, limit);
+		}
+		return len;
+	}
+	return -EINVAL;
+}
+
 static const struct file_operations _cl_chrlmt_fops = {
 	.owner = THIS_MODULE,
 	.open = _cl_chrlmt_open,
+	.write = _cl_chrlmt_write,
 	.read = seq_read,
 	.llseek = seq_lseek,
 	.release = single_release,
@@ -1469,7 +1500,7 @@ static int __init mtk_cooler_bcct_init(void)
 		else
 			proc_set_user(entry, uid, gid);
 
-		entry = proc_create("bcctlmt", S_IRUGO, NULL, &_cl_chrlmt_fops);
+		entry = proc_create("bcctlmt", S_IRUGO | S_IWUSR | S_IWGRP, NULL, &_cl_chrlmt_fops);
 
 		entry = proc_create("battery_status", S_IRUGO, NULL, &_cl_battery_status_fops);
 	}

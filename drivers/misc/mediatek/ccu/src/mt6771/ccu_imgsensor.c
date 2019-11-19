@@ -28,6 +28,10 @@ static struct ccu_sensor_info g_ccu_sensor_info_main3  = {-1, NULL};
 static char g_ccu_sensor_name_main3[SENSOR_NAME_MAX_LEN];
 static struct ccu_sensor_info g_ccu_sensor_info_sub  = {-1, NULL};
 static char g_ccu_sensor_name_sub[SENSOR_NAME_MAX_LEN];
+
+static struct ccu_sensor_info g_ccu_sensor_info_sub2  = {-1, NULL};
+static char g_ccu_sensor_name_sub2[SENSOR_NAME_MAX_LEN];
+
 /*<<<<< Information get from imgsensor driver*/
 
 void ccu_set_current_fps(int32_t sensorType, int32_t current_fps)
@@ -46,6 +50,7 @@ void ccu_get_current_fps(int32_t *current_fps_list)
 
 void ccu_set_sensor_info(int32_t sensorType, struct ccu_sensor_info *info)
 {
+
 	if (sensorType == IMGSENSOR_SENSOR_IDX_NONE) {
 		/*Non-sensor*/
 		LOG_ERR("No sensor been detected.\n");
@@ -67,6 +72,15 @@ void ccu_set_sensor_info(int32_t sensorType, struct ccu_sensor_info *info)
 		}
 		LOG_DBG_MUST("ccu catch Sub sensor i2c slave address : 0x%x\n", info->slave_addr);
 		LOG_DBG_MUST("ccu catch Sub sensor name : %s\n", g_ccu_sensor_info_sub.sensor_name_string);
+	} else if (sensorType == IMGSENSOR_SENSOR_IDX_SUB2) {
+		/*Sub2*/
+		g_ccu_sensor_info_sub2.slave_addr  = info->slave_addr;
+		if (info->sensor_name_string != NULL) {
+			memcpy(g_ccu_sensor_name_sub2, info->sensor_name_string, strlen(info->sensor_name_string)+1);
+			g_ccu_sensor_info_sub2.sensor_name_string = g_ccu_sensor_name_sub2;
+		}
+		LOG_DBG_MUST("ccu catch Sub2 sensor i2c slave address : 0x%x\n", info->slave_addr);
+		LOG_DBG_MUST("ccu catch Sub2 sensor name : %s\n", g_ccu_sensor_info_sub2.sensor_name_string);
 	} else if (sensorType == IMGSENSOR_SENSOR_IDX_MAIN2) {
 		/*Main2*/
 		g_ccu_sensor_info_main2.slave_addr  = info->slave_addr;

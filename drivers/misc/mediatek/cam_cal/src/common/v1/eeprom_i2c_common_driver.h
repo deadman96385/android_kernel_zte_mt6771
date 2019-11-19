@@ -18,5 +18,7 @@ unsigned int Common_read_region(struct i2c_client *client,
 				unsigned int addr,
 				unsigned char *data,
 				unsigned int size);
+unsigned int S5k4h8_read_region(struct i2c_client *client, unsigned int addr,
+				unsigned char *data, unsigned int size);
 
 #endif				/* __CAM_CAL_LIST_H */

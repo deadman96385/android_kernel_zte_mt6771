@@ -31,5 +31,6 @@ void external_display_check_recovery_init(void);
 void external_display_esd_check_enable(int enable);
 
 void set_esd_check_mode(unsigned int mode);
+extern bool tp_esd_check(void);
 
 #endif

@@ -388,6 +388,18 @@ void rtc_mark_fast(void)
 	spin_unlock_irqrestore(&rtc_lock, flags);
 }
 
+/*zte add for meta start*/
+void rtc_mark_meta(void)
+{
+	unsigned long flags;
+
+	rtc_xinfo("rtc_mark_meta\n");
+	spin_lock_irqsave(&rtc_lock, flags);
+	hal_rtc_set_spare_register(RTC_UART, 0x1);
+	spin_unlock_irqrestore(&rtc_lock, flags);
+}
+/*zte add for meta end*/
+
 u16 rtc_rdwr_uart_bits(u16 *val)
 {
 	u16 ret = 0;
@@ -727,6 +739,29 @@ void rtc_pwm_enable_check(void)
 #endif
 }
 
+/*zte_clear_alarm_with_no_poweroff_alarm start*/
+void zte_clear_alarm_with_no_poweroff_alarm(void)
+{
+	struct rtc_time nowtm;
+	struct rtc_time tm;
+	bool pwron_alarm = false;
+
+	pwron_alarm = hal_rtc_is_pwron_alarm(&nowtm, &tm);
+	pr_err("zte pwron_alarm=%d!\n", pwron_alarm);
+
+	if (pwron_alarm == false) {
+		tm.tm_year = RTC_MIN_YEAR;
+		tm.tm_mon = 1;
+		tm.tm_mday = 1;
+		tm.tm_hour = 0;
+		tm.tm_min = 0;
+		tm.tm_sec = 0;
+
+		hal_rtc_set_alarm(&tm);
+		pr_err("zte clear alarm!\n");
+	}
+}
+/*zte_clear_alarm_with_no_poweroff_alarm end*/
 
 static int rtc_ops_ioctl(struct device *dev, unsigned int cmd, unsigned long arg)
 {
@@ -771,6 +806,9 @@ static int rtc_pdrv_probe(struct platform_device *pdev)
 	spin_unlock_irqrestore(&rtc_lock, flags);
 
 	device_init_wakeup(&pdev->dev, 1);
+	/*zte_clear_alarm_with_no_poweroff_alarm, this func must be ahead of rtc_device_register*/
+	zte_clear_alarm_with_no_poweroff_alarm();
+
 	/* register rtc device (/dev/rtc0) */
 	rtc = rtc_device_register(RTC_NAME, &pdev->dev, &rtc_ops, THIS_MODULE);
 	if (IS_ERR(rtc)) {

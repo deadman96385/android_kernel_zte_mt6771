@@ -37,6 +37,7 @@
 #include <linux/of_irq.h>
 #include <linux/of_gpio.h>
 #include <linux/suspend.h>
+#include <linux/proc_fs.h>
 
 #include <accel.h>
 #include <cust_acc.h>
@@ -56,6 +57,13 @@
 
 #define BYTES_PER_LINE		(16)
 #define WORK_DELAY_DEFAULT	(200)
+
+#define BMI160_CALI_LEN				(10)
+#define BMI160_CALI_TOLERANCE		(1500)
+static struct proc_dir_entry *acc_calibrate_proc_file = NULL;
+
+
+#define ACCEL_INTERRUPT_GPIO		(2)
 
 static const struct i2c_device_id bmi160_acc_i2c_id[] = {{BMI160_DEV_NAME, 0}, {} };
 
@@ -560,8 +568,8 @@ static int BMI160_ACC_CheckDeviceID(struct i2c_client *client)
 {
 	int err = 0;
 	u8 databuf[2] = { 0 };
+	u8 data[2] = {0};
 
-	err = bma_i2c_read_block(client, BMI160_USER_CHIP_ID__REG, databuf, 1);
 	err = bma_i2c_read_block(client, BMI160_USER_CHIP_ID__REG, databuf, 1);
 	if (err < 0) {
 		GSE_ERR("read chip id failed.\n");
@@ -571,9 +579,35 @@ static int BMI160_ACC_CheckDeviceID(struct i2c_client *client)
 	case SENSOR_CHIP_ID_BMI:
 	case SENSOR_CHIP_ID_BMI_C2:
 	case SENSOR_CHIP_ID_BMI_C3:
-		GSE_LOG("check chip id %d successfully.\n", databuf[0]);
+		err = bma_i2c_read_block(client, ICM206XX_REG_WHO_AM_I, data, 1);
+		if (err < 0) {
+			GSE_ERR("read icm206xx who_am_i register(0x75) err!\n");
+			return BMI160_ACC_ERR_I2C;
+		}
+		if (data[0] == ICM20608D_WHO_AM_I) {
+			/*  its icm206xx chip id, check more (bmi160's 0x75 is R/W, icm20600's 0x75 is RO). */
+			GSE_LOG("Register[0x75=0x%02x], cant confirm bmi or icm, check more.\n", data[0]);
+			data[0] = 0x00;
+			err = bma_i2c_write_block(client, ICM206XX_REG_WHO_AM_I, data, 1);
+			if (err < 0) {
+				GSE_ERR("write icm206xx who_am_i register(0x75) err!\n");
+				return BMI160_ACC_ERR_I2C;
+			}
+			msleep(20);
+			err = bma_i2c_read_block(client, ICM206XX_REG_WHO_AM_I, data, 1);
+			if (err < 0) {
+				GSE_ERR("read who_am_i register err!\n");
+				return BMI160_ACC_ERR_I2C;
+			}
+			GSE_LOG("Register[0x75=0x%02x] after write0x00.\n", data[0]);
+			if (data[0] == ICM20608D_WHO_AM_I) {
+				err = -2;
+			}
+		}
+		GSE_LOG("check chip id 0x%02x %s.\n", databuf[0], err < 0 ? "failed" : "successfully");
 		break;
 	default:
+		err = -2;
 		GSE_LOG("check chip id %d failed.\n", databuf[0]);
 		break;
 	}
@@ -1249,7 +1283,7 @@ static ssize_t show_status_value(struct device_driver *ddri, char *buf)
 
 	if (obj->hw) {
 		len += snprintf(buf + len, PAGE_SIZE - len, "CUST: %d %d (%d %d)\n",
-				obj->hw->i2c_num, obj->hw->direction, obj->hw->power_id,
+				obj->hw->i2c_num, obj->hw->direction_cp, obj->hw->power_id,
 				obj->hw->power_vol);
 	} else {
 		len += snprintf(buf + len, PAGE_SIZE - len, "CUST: NULL\n");
@@ -1669,7 +1703,7 @@ static ssize_t show_layout_value(struct device_driver *ddri, char *buf)
 	struct bmi160_acc_i2c_data *data = obj_i2c_data;
 
 	return sprintf(buf, "(%d, %d)\n[%+2d %+2d %+2d]\n[%+2d %+2d %+2d]\n",
-		       data->hw->direction, atomic_read(&data->layout), data->cvt.sign[0],
+		       data->hw->direction_cp, atomic_read(&data->layout), data->cvt.sign[0],
 		       data->cvt.sign[1], data->cvt.sign[2], data->cvt.map[0], data->cvt.map[1],
 		       data->cvt.map[2]);
 }
@@ -1684,10 +1718,10 @@ static ssize_t store_layout_value(struct device_driver *ddri, const char *buf, s
 		atomic_set(&data->layout, layout);
 		if (!hwmsen_get_convert(layout, &data->cvt)) {
 			GSE_ERR("HWMSEN_GET_CONVERT function error!\r\n");
-		} else if (!hwmsen_get_convert(data->hw->direction, &data->cvt)) {
-			GSE_ERR("invalid layout: %d, restore to %d\n", layout, data->hw->direction);
+		} else if (!hwmsen_get_convert(data->hw->direction_cp, &data->cvt)) {
+			GSE_ERR("invalid layout: %d, restore to %d\n", layout, data->hw->direction_cp);
 		} else {
-			GSE_ERR("invalid layout: (%d, %d)\n", layout, data->hw->direction);
+			GSE_ERR("invalid layout: (%d, %d)\n", layout, data->hw->direction_cp);
 			ret = hwmsen_get_convert(0, &data->cvt);
 			if (!ret)
 				GSE_ERR("HWMSEN_GET_CONVERT function error!\r\n");
@@ -1751,7 +1785,7 @@ static ssize_t bmi_register_store(struct device_driver *ddri, const char *buf, s
 
 	write_reg_add = (u8) reg_addr;
 	write_data = (u8) data;
-	err += bma_i2c_write_block(client, write_reg_add, &write_data, 1);
+	err = bma_i2c_write_block(client, write_reg_add, &write_data, 1);
 
 	if (!err) {
 		GSE_ERR("write reg 0x%2x, value= 0x%2x\n", reg_addr, data);
@@ -1986,6 +2020,181 @@ static int bmi160_acc_delete_attr(struct device_driver *driver)
 		driver_remove_file(driver, bmi160_acc_attr_list[idx]);
 	return err;
 }
+
+/*----------------------------------------------------------------------------*/
+/* acc calibrate proc, add by zte dgsh 20171212  --start-- */
+static bool is_accel_calibration_valid(int cali_value[BMI160_ACC_AXES_NUM])
+{
+	struct bmi160_acc_i2c_data *obj = obj_i2c_data;
+	s32 offset = BMI160_CALI_TOLERANCE * obj->reso->sensitivity / GRAVITY_EARTH_1000;
+
+	if ((abs(cali_value[BMI160_ACC_AXIS_X]) > offset)
+		|| (abs(cali_value[BMI160_ACC_AXIS_Y]) > offset)
+		|| (abs(cali_value[BMI160_ACC_AXIS_Z]) > offset*2)) {
+		return false;
+	}
+	return true;
+}
+
+static int acc_calibrate_open(struct inode *inode, struct file *file)
+{
+	int err;
+
+	err = nonseekable_open(inode, file);
+	if (err < 0)
+		return err;
+
+	file->private_data = obj_i2c_data;
+
+	return 0;
+}
+
+static int calculate_cali_data(int cali_data[BMI160_ACC_AXES_NUM])
+{
+	s16 rawacc[BMI160_ACC_AXES_NUM] = {0};
+	s32 raw_sum[BMI160_ACC_AXES_NUM] = {0};
+	int i = 0;
+	struct bmi160_acc_i2c_data *obj = obj_i2c_data;
+	int res = 0;
+
+	if (sensor_power == false) {
+		res = BMI160_ACC_SetPowerMode(bmi160_acc_i2c_client, true);
+		if (res) {
+			GSE_ERR("Power on bmi160_acc error %d!\n", res);
+		}
+	}
+	for (i = 0; i < BMI160_CALI_LEN; i++) {
+		res = BMI160_ACC_ReadData(bmi160_acc_i2c_client, rawacc);
+		if (res < 0) {
+			GSE_ERR("I2C error at %d: ret value=%d", i, res);
+			res = -3;
+			return res;
+		}
+		GSE_LOG("%s:raw,x=%d,y=%d,z=%d.\n", __func__,
+					rawacc[BMI160_ACC_AXIS_X],
+					rawacc[BMI160_ACC_AXIS_Y],
+					rawacc[BMI160_ACC_AXIS_Z]);
+		raw_sum[BMI160_ACC_AXIS_X] += rawacc[BMI160_ACC_AXIS_X];
+		raw_sum[BMI160_ACC_AXIS_Y] += rawacc[BMI160_ACC_AXIS_Y];
+		raw_sum[BMI160_ACC_AXIS_Z] += rawacc[BMI160_ACC_AXIS_Z];
+		msleep(20);
+	}
+	/*  calc avarage*/
+	GSE_LOG("%s:sum,x:%d,y:%d,z:%d\n", __func__,
+				raw_sum[BMI160_ACC_AXIS_X],
+				raw_sum[BMI160_ACC_AXIS_Y],
+				raw_sum[BMI160_ACC_AXIS_Z]);
+	rawacc[BMI160_ACC_AXIS_X] = raw_sum[BMI160_ACC_AXIS_X] / BMI160_CALI_LEN;
+	rawacc[BMI160_ACC_AXIS_Y] = raw_sum[BMI160_ACC_AXIS_Y] / BMI160_CALI_LEN;
+	rawacc[BMI160_ACC_AXIS_Z] = raw_sum[BMI160_ACC_AXIS_Z] / BMI160_CALI_LEN;
+	GSE_LOG("%s:avg,x:%d,y:%d,z:%d\n", __func__,
+				rawacc[BMI160_ACC_AXIS_X],
+				rawacc[BMI160_ACC_AXIS_Y],
+				rawacc[BMI160_ACC_AXIS_Z]);
+
+	/* not convert , because add cali_sw[i] before convert in BMI160_ACC_ReadSensorData. */
+/*	rawacc[BMI160_ACC_AXIS_X] = rawacc[BMI160_ACC_AXIS_X] * GRAVITY_EARTH_1000 / obj->reso->sensitivity;
+	rawacc[BMI160_ACC_AXIS_Y] = rawacc[BMI160_ACC_AXIS_Y] * GRAVITY_EARTH_1000 / obj->reso->sensitivity;
+	rawacc[BMI160_ACC_AXIS_Z] = rawacc[BMI160_ACC_AXIS_Z] * GRAVITY_EARTH_1000 / obj->reso->sensitivity;
+*/
+	cali_data[obj->cvt.map[BMI160_ACC_AXIS_X]] = 0 - obj->cvt.sign[BMI160_ACC_AXIS_X] * rawacc[BMI160_ACC_AXIS_X];
+	cali_data[obj->cvt.map[BMI160_ACC_AXIS_Y]] = 0 - obj->cvt.sign[BMI160_ACC_AXIS_Y] * rawacc[BMI160_ACC_AXIS_Y];
+	cali_data[obj->cvt.map[BMI160_ACC_AXIS_Z]] =
+				obj->reso->sensitivity - obj->cvt.sign[BMI160_ACC_AXIS_Z] * rawacc[BMI160_ACC_AXIS_Z];
+
+	if (is_accel_calibration_valid(cali_data) == false) {
+		GSE_ERR("calibration value invalid[X:%d,Y:%d,Z:%d].", cali_data[BMI160_ACC_AXIS_X],
+			cali_data[BMI160_ACC_AXIS_Y], cali_data[BMI160_ACC_AXIS_Z]);
+		res = -2;
+		return res;
+	}
+
+	BMI160_ACC_ResetCalibration(obj->client);
+	BMI160_ACC_WriteCalibration(obj->client, cali_data);
+	return res;
+}
+
+
+static ssize_t acc_calibrate_read_proc(struct file *file,	char __user *buffer, size_t count, loff_t *offset)
+{
+	int cnt;
+	int cali_data[BMI160_ACC_AXES_NUM] = {0};
+	char buff[20] = {'\0'};
+	int res = 0;
+
+	GSE_FUN();
+	if (*offset != 0) {
+		GSE_LOG("%s,offset!=0 -> return 0\n", __func__);
+		return 0;
+	}
+
+	res = calculate_cali_data(cali_data);
+	if (res < 0) {
+		GSE_LOG("%s, calculate_cali_data error\n", __func__);
+		return res;
+	}
+
+	cnt = snprintf(buff, PAGE_SIZE, "%d %d %d",
+			cali_data[BMI160_ACC_AXIS_X], cali_data[BMI160_ACC_AXIS_Y], cali_data[BMI160_ACC_AXIS_Z]);
+	GSE_LOG("cnt:%d, buff:%s", cnt, buff);
+	if (copy_to_user(buffer, buff, cnt)) {
+		GSE_ERR("%s, copy_to_user error\n", __func__);
+		return -EINVAL;
+	}
+	*offset += cnt;
+	return cnt;
+}
+
+static ssize_t acc_calibrate_write_proc(struct file *file, const char __user *user_buf, size_t len, loff_t *offset)
+{
+	int cali_data[BMI160_ACC_AXES_NUM] = {0};
+	struct bmi160_acc_i2c_data *obj = file->private_data;
+	char buf[16] = {0};
+
+	size_t copyLen = 0;
+
+	GSE_LOG("%s: write len = %d\n", __func__, (int)len);
+	copyLen = len < 16 ? len : 16;
+	if (copy_from_user(buf, user_buf, copyLen)) {
+		GSE_LOG("%s, copy_from_user error\n", __func__);
+		return -EFAULT;
+	}
+
+	sscanf(buf, "%d %d %d",
+		&cali_data[BMI160_ACC_AXIS_X], &cali_data[BMI160_ACC_AXIS_Y], &cali_data[BMI160_ACC_AXIS_Z]);
+	GSE_LOG("[x:%d,y:%d,z:%d], copyLen=%d\n", cali_data[BMI160_ACC_AXIS_X],
+		cali_data[BMI160_ACC_AXIS_Y], cali_data[BMI160_ACC_AXIS_Z], (int)copyLen);
+
+	if (is_accel_calibration_valid(cali_data) == false) {
+		GSE_ERR("calibration value invalid[X:%d,Y:%d,Z:%d].", cali_data[BMI160_ACC_AXIS_X],
+			cali_data[BMI160_ACC_AXIS_Y], cali_data[BMI160_ACC_AXIS_Z]);
+		return -EFAULT;
+	}
+
+	BMI160_ACC_ResetCalibration(obj->client);
+	BMI160_ACC_WriteCalibration(obj->client, cali_data);
+	return len;
+}
+
+static const struct file_operations acc_calibrate_proc_fops = {
+	.owner      = THIS_MODULE,
+	.open       = acc_calibrate_open,
+	.read       = acc_calibrate_read_proc,
+	.write      = acc_calibrate_write_proc,
+};
+
+static void create_acc_calibrate_proc_file(void)
+{
+	acc_calibrate_proc_file = proc_create("driver/acc_calibration", 0664, NULL, &acc_calibrate_proc_fops);
+	GSE_FUN(f);
+
+	if (acc_calibrate_proc_file == NULL) {
+	    GSE_ERR("create acc_calibrate_proc_file fail!\n");
+	}
+}
+/* acc calibrate proc, add by zte dgsh 20171212  --e-n-d--*/
+
+/*----------------------------------------------------------------------------*/
 
 #if 0
 static int bmi160_acc_open(struct inode *inode, struct file *file)
@@ -2452,7 +2661,21 @@ static int bmi160_factory_get_raw_data(int32_t data[3])
 }
 static int bmi160_factory_enable_calibration(void)
 {
-	return 0;
+	struct acc_data offset_data;
+	int    cali_data[3];
+	int    res = 0;
+
+	res = calculate_cali_data(cali_data);
+	if (res < 0) {
+		GSE_LOG("%s, calculate_cali_data error\n", __func__);
+		return res;
+	}
+
+	offset_data.x = cali_data[0];
+	offset_data.y = cali_data[1];
+	offset_data.z = cali_data[2];
+	res = acc_cali_report(&offset_data);
+	return res;
 }
 static int bmi160_factory_clear_cali(void)
 {
@@ -3567,6 +3790,26 @@ static int bmi160acc_setup_eint(struct i2c_client *client)
 }
 #endif
 
+static int gsensor_set_cali(uint8_t *data, uint8_t count)
+{
+	int32_t *buf = (int32_t *)data;
+	int error = 0;
+	int offset[3] = {0};
+	struct i2c_client *client = bmi160_acc_i2c_client;
+
+	if (count >= 5) {
+		offset[BMI160_ACC_AXIS_X] = buf[3];
+		offset[BMI160_ACC_AXIS_Y] = buf[4];
+		offset[BMI160_ACC_AXIS_Z] = buf[5];
+	}
+	GSE_LOG("gsensor_set_cali %d %d %d\n",
+		offset[BMI160_ACC_AXIS_X], offset[BMI160_ACC_AXIS_Y], offset[BMI160_ACC_AXIS_Z]);
+
+	BMI160_ACC_ResetCalibration(client);
+	error = BMI160_ACC_WriteCalibration(client, offset);
+	return error;
+}
+
 static int bmi160_acc_i2c_probe(struct i2c_client *client, const struct i2c_device_id *id)
 {
 	struct i2c_client *new_client = NULL;
@@ -3590,9 +3833,9 @@ static int bmi160_acc_i2c_probe(struct i2c_client *client, const struct i2c_devi
 	}
 	memset(obj, 0, sizeof(struct bmi160_acc_i2c_data));
 	obj->hw = hw;
-	err = hwmsen_get_convert(obj->hw->direction, &obj->cvt);
+	err = hwmsen_get_convert(obj->hw->direction_cp, &obj->cvt);
 	if (err) {
-		GSE_ERR("invalid direction: %d\n", obj->hw->direction);
+		GSE_ERR("invalid direction: %d\n", obj->hw->direction_cp);
 		goto exit_kfree;
 	}
 	obj_i2c_data = obj;
@@ -3611,6 +3854,12 @@ static int bmi160_acc_i2c_probe(struct i2c_client *client, const struct i2c_devi
 	if (err)
 		goto exit_init_failed;
 #endif
+	err = BMI160_ACC_CheckDeviceID(client);
+	if (err < 0) {
+		GSE_ERR("It's not BMI160 accelerometer device.\n");
+		goto exit_kfree;
+	}
+
 	err = bmi160_acc_init_client(new_client, 1);
 	if (err)
 		goto exit_init_failed;
@@ -3626,7 +3875,7 @@ static int bmi160_acc_i2c_probe(struct i2c_client *client, const struct i2c_devi
 #endif
 
 #ifndef MTK_NEW_ARCH_ACCEL
-	obj->gpio_pin = 94;
+	obj->gpio_pin = ACCEL_INTERRUPT_GPIO;
 	obj->IRQ = gpio_to_irq(obj->gpio_pin);
 	err = request_irq(obj->IRQ, bmi_irq_handler, IRQF_TRIGGER_RISING, "bmi160", obj);
 	if (err)
@@ -3649,11 +3898,14 @@ static int bmi160_acc_i2c_probe(struct i2c_client *client, const struct i2c_devi
 		GSE_ERR("create attribute failed.\n");
 		goto exit_create_attr_failed;
 	}
+
+	create_acc_calibrate_proc_file();
 	ctl.enable_nodata = bmi160_acc_enable_nodata;
 	ctl.batch = bmi160_acc_batch;
 	ctl.flush = bmi160_acc_flush;
 	ctl.is_support_batch = false;	/* using customization info */
 	ctl.is_report_input_direct = false;
+	ctl.set_cali = gsensor_set_cali;
 	/* obj->is_input_enable = ctl.is_report_input_direct; */
 
 	err = acc_register_control_path(&ctl);
@@ -3710,15 +3962,20 @@ static int bmi160_acc_i2c_probe(struct i2c_client *client, const struct i2c_devi
 	udelay(500);
 	/*-------------------------------------------------------------------*/
 	err = bmi160_acc_init_client(new_client, 1);
+	if (err < 0) {
+		GSE_ERR("BMI160 accel initial failed.\n");
+		goto exit_init_failed;
+	}
 	INIT_WORK(&obj->irq_work, bmi_irq_work_func);
 	bmi160_acc_init_flag = 0;
 	GSE_LOG("%s: is ok.\n", __func__);
 	return 0;
-
+exit_init_failed:
+	bmi160_acc_delete_attr(&(bmi160_acc_init_info.platform_diver_addr->driver));
 exit_create_attr_failed:
 	/* misc_deregister(&bmi160_acc_device); */
+	accel_factory_device_deregister(&bmi160_factory_device);
 exit_misc_device_register_failed:
-exit_init_failed:
 exit_kfree:
 	kfree(obj);
 exit:

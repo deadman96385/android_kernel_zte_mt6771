@@ -22,6 +22,10 @@
 #include <linux/printk.h>
 #include <linux/types.h>
 #include <linux/kobject.h>
+#include <linux/proc_fs.h>
+#include <linux/uaccess.h>
+
+
 
 #include "mt-plat/mtk_thermal_monitor.h"
 
@@ -158,17 +162,58 @@ static void mtk_cooler_backlight_unregister_ltf(void)
 	}
 }
 
+static int _cl_backlightlmt_read(struct seq_file *m, void *v)
+{
+	mtk_cooler_backlight_dprintk("%s\n", __func__);
+
+	seq_printf(m, "%d\n", g_backlight_level);
+
+	return 0;
+}
+
+static int _cl_backlightlmt_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, _cl_backlightlmt_read, PDE_DATA(inode));
+}
+
+static ssize_t _cl_backlightlmt_write(struct file *filp, const char __user *buf, size_t len, loff_t *data)
+{
+	int limit;
+	char tmp[128] = { 0 };
+
+	len = (len < (128 - 1)) ? len : (128 - 1);
+	/* write data to the buffer */
+	if (copy_from_user(tmp, buf, len))
+		return -EFAULT;
+
+	if (sscanf(tmp, "%d", &limit) >= 1) {
+		g_backlight_level = limit;
+		mtk_cl_backlight_set_max_brightness_limit();
+		mtk_cooler_backlight_dprintk("%s limit=%d\n", __func__, limit);
+		return len;
+	}
+	return -EINVAL;
+}
+
+static const struct file_operations _cl_backlightlmt_fops = {
+	.owner = THIS_MODULE,
+	.open = _cl_backlightlmt_open,
+	.write = _cl_backlightlmt_write,
+	.read = seq_read,
+	.llseek = seq_lseek,
+	.release = single_release,
+};
 
 static int __init mtk_cooler_backlight_init(void)
 {
 	int err = 0;
-
+	struct proc_dir_entry *entry = NULL;
 	mtk_cooler_backlight_dprintk("init\n");
 
 	err = mtk_cooler_backlight_register_ltf();
 	if (err)
 		goto err_unreg;
-
+	entry = proc_create("backlightlmt", S_IRUGO | S_IWUSR | S_IWGRP, NULL, &_cl_backlightlmt_fops);
 	return 0;
 
  err_unreg:

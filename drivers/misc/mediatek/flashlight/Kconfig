@@ -120,6 +120,14 @@ config MTK_FLASHLIGHT_HA7109
 
 	  Say M here if you want to compile this driver as a module.
 
+config MTK_FLASHLIGHT_AW3648
+	tristate "Mediatek flashlight with driver IC (AWINIC AW3648)"
+	depends on MTK_FLASHLIGHT
+	default n
+	help
+	  This is for the flashlight driver IC (AWINIC AW3648).
+
+	  Say Y here if you want a flashlight driver IC AW3648.
 config MTK_FLASHLIGHT_RT4509
 	tristate "Mediatek flashlight with driver IC (Richtek RT4509)"
 	depends on MTK_FLASHLIGHT
@@ -199,4 +207,9 @@ config MTK_FLASHLIGHT_DLPT
 	  Dynamic low power throttling is a mechanism to monitor
 	  the current of battary dynamicly. It will start by request
 	  and notice user by kernel notifier.
+config V10SMART_SINGLE_FLASH
+	bool "Mediatek flashlight single messages"
+	depends on MTK_FLASHLIGHT
+	default n
+	help
 

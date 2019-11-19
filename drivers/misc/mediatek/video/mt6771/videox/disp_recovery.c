@@ -509,6 +509,8 @@ done:
 	return ret;
 }
 
+extern char *mtkfb_find_lcm_driver(void);
+#define MAX_LCM_NAME_LEN 256
 static int primary_display_check_recovery_worker_kthread(void *data)
 {
 	struct sched_param param = {.sched_priority = 87 };
@@ -516,12 +518,19 @@ static int primary_display_check_recovery_worker_kthread(void *data)
 	int i = 0;
 	int esd_try_cnt = 5; /* 20; */
 	int recovery_done = 0;
+	char *tmp_name = NULL;
+
+	tmp_name = mtkfb_find_lcm_driver();
 
 	DISPFUNC();
 	sched_setscheduler(current, SCHED_RR, &param);
 
 	while (1) {
-		msleep(2000); /* 2s */
+		if (strnstr(tmp_name, "icnl9911", MAX_LCM_NAME_LEN) != NULL) {
+			msleep(1000); /* 1s */
+		} else {
+			msleep(2000); /* 2s */
+		}
 		ret = wait_event_interruptible(_check_task_wq, atomic_read(&_check_task_wakeup));
 		if (ret < 0) {
 			DISPINFO("[disp_check]check thread waked up accidently\n");
@@ -534,12 +543,21 @@ static int primary_display_check_recovery_worker_kthread(void *data)
 		if (esd_check_enable) {
 			i = 0; /* repeat */
 			do {
-				ret = primary_display_esd_check();
+				ret = primary_display_esd_check() || tp_esd_check();
 				if (!ret) /* success */
 					break;
 
 				DDPPR_ERR("[ESD]esd check fail, will do esd recovery. try=%d\n", i);
 				primary_display_esd_recovery();
+
+				if (tmp_name != NULL) {
+					if (strnstr(tmp_name, "icnl9911", MAX_LCM_NAME_LEN) != NULL) {
+						msleep(200);
+						DDPPR_ERR("[ESD]esd check fail, will do esd recovery again\n");
+						primary_display_esd_recovery();
+					}
+				}
+
 				recovery_done = 1;
 			} while (++i < esd_try_cnt);
 

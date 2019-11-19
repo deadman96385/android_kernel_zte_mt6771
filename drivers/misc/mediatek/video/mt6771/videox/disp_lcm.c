@@ -884,6 +884,10 @@ void load_lcm_resources_from_DT(LCM_DRIVER *lcm_drv)
 }
 #endif
 
+#ifdef CONFIG_ZTE_LCD_BACKLIGHT_LEVEL_CURVE
+extern void set_lcm_backlight_curve_mode(int mode);
+#endif
+
 struct disp_lcm_handle *disp_lcm_probe(char *plcm_name, LCM_INTERFACE_ID lcm_id, int is_lcm_inited)
 {
 	int lcmindex = 0;
@@ -1019,6 +1023,9 @@ struct disp_lcm_handle *disp_lcm_probe(char *plcm_name, LCM_INTERFACE_ID lcm_id,
 		    && plcm->params->lcm_if == LCM_INTERFACE_NOTDEFINED)
 			plcm->lcm_if_id = LCM_INTERFACE_DBI0;
 
+#ifdef CONFIG_ZTE_LCD_BACKLIGHT_LEVEL_CURVE
+		set_lcm_backlight_curve_mode(plcm->params->dsi.lcm_backlight_curve_mode);
+#endif
 		if ((lcm_id == LCM_INTERFACE_NOTDEFINED) || lcm_id == plcm->lcm_if_id) {
 			plcm->lcm_original_width = plcm->params->width;
 			plcm->lcm_original_height = plcm->params->height;

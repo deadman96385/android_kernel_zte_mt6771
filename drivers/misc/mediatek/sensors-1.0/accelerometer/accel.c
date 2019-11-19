@@ -17,7 +17,7 @@
 #include "sensor_performance.h"
 
 struct acc_context *acc_context_obj/* = NULL*/;
-
+char *sensor_name = NULL;
 
 static struct acc_init_info *gsensor_init_list[MAX_CHOOSE_G_NUM] = { 0 };
 
@@ -528,6 +528,7 @@ static int acc_real_driver_init(void)
 			if (err == 0) {
 				ACC_LOG(" acc real driver %s probe ok\n",
 					gsensor_init_list[i]->name);
+				sensor_name = gsensor_init_list[i]->name;
 				break;
 			}
 		}

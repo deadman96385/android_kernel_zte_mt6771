@@ -606,6 +606,8 @@ typedef struct {
 	unsigned int edp_panel;
 	unsigned int customization_esd_check_enable;
 	unsigned int esd_check_enable;
+	unsigned int lcm_backlight_curve_mode;
+	unsigned int lcm_vsp_vsn_voltage; /* mv */
 	unsigned int lcm_int_te_monitor;
 	unsigned int lcm_int_te_period;
 
@@ -832,6 +834,10 @@ typedef enum {
 	LCM_DRV_IOCTL_ENABLE_CMD_MODE = 0x100,
 } LCM_DRV_IOCTL_CMD;
 
+#ifdef CONFIG_ZTE_LCD_COMMON_FUNCTION
+struct zte_lcd_ctrl_data;
+#endif
+
 typedef struct {
 	const char *name;
 	void (*set_util_funcs)(const LCM_UTIL_FUNCS *util);
@@ -885,6 +891,9 @@ typedef struct {
 	void (*set_pwm_for_mix)(int enable);
 
 	void (*aod)(int enter);
+#ifdef CONFIG_ZTE_LCD_COMMON_FUNCTION
+	struct zte_lcd_ctrl_data *zte_lcd_ctrl;
+#endif
 } LCM_DRIVER;
 
 #if	defined(CONFIG_ARCH_MT6735) ||\
@@ -907,7 +916,8 @@ extern LCM_DSI_MODE_CON lcm_dsi_mode;
 extern int display_bias_enable(void);
 extern int display_bias_disable(void);
 extern int display_bias_regulator_init(void);
-
-
+extern int suspend_tp_need_awake(void);
+extern void set_lcd_reset_processing(bool enable);
+extern int tpd_reset_proc(void);
 
 #endif /* __LCM_DRV_H__ */

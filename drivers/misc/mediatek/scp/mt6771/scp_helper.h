@@ -220,6 +220,7 @@ extern void scp_logger_init_set(unsigned int value);
 extern unsigned int scp_set_reset_status(void);
 extern void scp_enable_sram(void);
 extern int scp_sys_full_reset(void);
+void get_gsensor_chip_info(char *chip_info);
 #if SCP_RECOVERY_SUPPORT
 extern phys_addr_t scp_loader_base_virt;
 extern unsigned int scp_reset_by_cmd;

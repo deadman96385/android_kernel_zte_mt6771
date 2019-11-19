@@ -99,12 +99,12 @@ void rect_join(const struct disp_rect *in1, const struct disp_rect *in2,
 	int fTop = in2->y;
 	int fRight = in2->x + in2->width - 1;
 	int fBottom = in2->y + in2->height - 1;
-
+#ifdef DEBUG_DISP
 	int in2_x = in2->x;
 	int in2_y = in2->y;
 	int in2_w = in2->width;
 	int in2_h = in2->height;
-
+#endif
 	/* do nothing if the params are empty*/
 	if (left >= right || top >= bottom) {
 		rect_set(out, fLeft, fTop, fRight, fBottom);

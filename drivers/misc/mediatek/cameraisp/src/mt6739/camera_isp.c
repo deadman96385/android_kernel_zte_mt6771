@@ -1061,7 +1061,8 @@ static unsigned int g_DmaErr_p1[nDMA_ERR] = { 0 };
 		do_div(sec,     1000);   \
 		usec = do_div(sec, 1000000);\
 	}
-#if     1
+/* #define DEBUG_ISP */
+#ifdef DEBUG_ISP
 /* snprintf: avaLen, 1 for null termination*/
 #define IRQ_LOG_KEEPER(irq,     ppb, logT, fmt, ...) do {\
 		char *ptr;\
@@ -1119,11 +1120,11 @@ static unsigned int g_DmaErr_p1[nDMA_ERR] = { 0 };
 		} \
 	} while (0)
 #else
-#define IRQ_LOG_KEEPER(irq, ppb, logT, fmt, args...)    pr_debug(IRQTag fmt,  ##args)
-#define IRQ_LOG_KEEPER_PR_ERR(irq, ppb, logT, fmt, args...)    pr_err(IRQTag fmt,  ##args)
+#define IRQ_LOG_KEEPER(irq, ppb, logT, fmt, args...)
+#define IRQ_LOG_KEEPER_PR_ERR(irq, ppb, logT, fmt, args...)
 #endif
 
-#if     1
+#ifdef DEBUG_ISP
 #define IRQ_LOG_PRINTER(irq, ppb_in, logT_in) do {\
 		struct SV_LOG_STR *pSrc = &gSvLog[irq];\
 		char *ptr;\
@@ -6395,9 +6396,11 @@ static signed int ISP_SOF_Buf_Get(enum eISPIrq irqT, union CQ_RTBC_FBC *pFbc, un
 		pstRTBuf->ring_buf[ch_rrzo].data[rrzo_idx].timeStampUs = usec;
 		if (IspInfo.DebugMask & ISP_DBG_INT_3) {
 			static unsigned int m_sec = 0, m_usec;
+#ifdef DEBUG_ISP
 			unsigned int _tmp =
 				pstRTBuf->ring_buf[ch_imgo].data[imgo_idx].timeStampS * 1000000 +
 				pstRTBuf->ring_buf[ch_imgo].data[imgo_idx].timeStampUs;
+#endif
 
 			if (g1stSof[irqT]) {
 				m_sec = 0;
@@ -10726,7 +10729,10 @@ static long ISP_ioctl(struct file *pFile, unsigned int Cmd, unsigned long Param)
 		break;
 	case ISP_DUMP_ISR_LOG:
 		if (copy_from_user(DebugFlag, (void *)Param, sizeof(unsigned int)) == 0) {
+#ifdef DEBUG_ISP
 			unsigned int currentPPB = m_CurrentPPB;
+#endif
+
 			unsigned int lock_key = _IRQ_MAX;
 
 			if (DebugFlag[0] >= _IRQ_MAX) {

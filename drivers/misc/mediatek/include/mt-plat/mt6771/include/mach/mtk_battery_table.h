@@ -38,7 +38,7 @@
  * load g_FG_PSEUDO100_Tx from dtsi
  */
 #define MULTI_BATTERY 0
-#define BATTERY_ID_CHANNEL_NUM 1
+#define BATTERY_ID_CHANNEL_NUM 2
 #define BATTERY_PROFILE_ID 0
 #define TOTAL_BATTERY_NUMBER 4
 
@@ -103,11 +103,11 @@ int g_FG_PSEUDO1[MAX_TABLE][TOTAL_BATTERY_NUMBER] = {
 
 int g_FG_PSEUDO100[MAX_TABLE][TOTAL_BATTERY_NUMBER] = {
 	/*bat1,   bat2,   bat3,    bat4*/
-	{ 100, 100, 100, 100},/*T0*/
-	{ 100, 100, 100, 100},/*T1*/
-	{ 100, 100, 100, 100},/*T2*/
-	{ 100, 100, 100, 100},/*T3*/
-	{ 100, 100, 100, 100},/*T4*/
+	{ 100, 99, 100, 100},/*T0*/
+	{ 100, 99, 100, 100},/*T1*/
+	{ 100, 99, 100, 100},/*T2*/
+	{ 100, 99, 100, 100},/*T3*/
+	{ 100, 99, 100, 100},/*T4*/
 	{ 100, 100, 100, 100},/*T5*/
 	{ 100, 100, 100, 100},/*T6*/
 	{ 100, 100, 100, 100},/*T7*/
@@ -166,9 +166,9 @@ int g_PON_SYS_IBOOT[MAX_TABLE][TOTAL_BATTERY_NUMBER] = {
 /* Q_MAX_SYS_VOLTAGE by temp ,control by MULTI_TEMP_GAUGE0=1, */
 int g_QMAX_SYS_VOL[MAX_TABLE][TOTAL_BATTERY_NUMBER] = {
 	/*bat1,   bat2,   bat3,    bat4*/
-	{33500, 33500, 33500, 33500},/*T0*/
-	{33500, 33500, 33500, 33500},/*T1*/
-	{33500, 33500, 33500, 33500},/*T2*/
+	{34000, 34000, 33500, 33500},/*T0*/
+	{34000, 34000, 33500, 33500},/*T1*/
+	{34000, 34000, 33500, 33500},/*T2*/
 	{32900, 32900, 32900, 32900},/*T3*/
 	{32800, 32800, 32800, 32800},/*T4*/
 	{33500, 33500, 33500, 33500},/*T5*/
@@ -196,15 +196,30 @@ int g_temperature[MAX_TABLE] = {
 };
 
 
+#if defined(CONFIG_MTK_BATTERY_NTC_VALUE) && (CONFIG_MTK_BATTERY_NTC_VALUE == 100)
+#define BAT_NTC_10 0
+#define BAT_NTC_47 0
+#define BAT_NTC_100 1
+#elif defined(CONFIG_MTK_BATTERY_NTC_VALUE) && (CONFIG_MTK_BATTERY_NTC_VALUE == 10)
 #define BAT_NTC_10 1
 #define BAT_NTC_47 0
+#define BAT_NTC_100 0
+#else
+#define BAT_NTC_10 0
+#define BAT_NTC_47 1
+#define BAT_NTC_100 0
+#endif
 
 #if (BAT_NTC_10 == 1)
 #define RBAT_PULL_UP_R             24000
 #endif
 
 #if (BAT_NTC_47 == 1)
-#define RBAT_PULL_UP_R             61900
+#define RBAT_PULL_UP_R             90900
+#endif
+
+#if (BAT_NTC_100 == 1)
+#define RBAT_PULL_UP_R             127000
 #endif
 
 #define RBAT_PULL_UP_VOLT          2800
@@ -212,7 +227,7 @@ int g_temperature[MAX_TABLE] = {
 #define BIF_NTC_R 16000
 
 #if (BAT_NTC_10 == 1)
-struct FUELGAUGE_TEMPERATURE Fg_Temperature_Table[21] = {
+struct FUELGAUGE_TEMPERATURE Fg_Temperature_Table[22] = {
 		{-40, 195652},
 		{-35, 148171},
 		{-30, 113347},
@@ -233,12 +248,13 @@ struct FUELGAUGE_TEMPERATURE Fg_Temperature_Table[21] = {
 		{45, 4917},
 		{50, 4161},
 		{55, 3535},
-		{60, 3014}
+		{60, 3014},
+		{65, 2586}
 };
 #endif
 
 #if (BAT_NTC_47 == 1)
-struct FUELGAUGE_TEMPERATURE Fg_Temperature_Table[21] = {
+struct FUELGAUGE_TEMPERATURE Fg_Temperature_Table[22] = {
 		{-40, 1747920},
 		{-35, 1245428},
 		{-30, 898485},
@@ -259,11 +275,37 @@ struct FUELGAUGE_TEMPERATURE Fg_Temperature_Table[21] = {
 		{45, 20048},
 		{50, 16433},
 		{55, 13539},
-		{60, 11210}
+		{60, 11210},
+		{65, 9328}
 };
 #endif
 
-
+#if (BAT_NTC_100 == 1)
+struct FUELGAUGE_TEMPERATURE Fg_Temperature_Table[22] = {
+		{-40, 4397119},
+		{-35, 3088599},
+		{-30, 2197225},
+		{-25, 1581881},
+		{-20, 1151037},
+		{-15, 846579},
+		{-10, 628988},
+		{-5, 471632},
+		{0, 357012},
+		{5, 272500},
+		{10, 209710},
+		{15, 162651},
+		{20, 127080},
+		{25, 100000},
+		{30, 79222},
+		{35, 63167},
+		{40, 50677},
+		{45, 40904},
+		{50, 33195},
+		{55, 27091},
+		{60, 22224},
+		{65, 18323}
+};
+#endif
 
 /* ============================================================
  * <DOD, Battery_Voltage> Table

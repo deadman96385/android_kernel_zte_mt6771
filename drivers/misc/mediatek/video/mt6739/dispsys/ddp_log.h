@@ -121,11 +121,15 @@ do {\
 			DISP_LOG_I(fmt, ##args);			\
 		}							\
 	} while (0)
-
+/* #define DEBUG_DDP */
+#ifdef DEBUG_DDP
 #define DDPDBG(fmt, args...) DISP_LOG_D(fmt, ##args)
 
 #define DDPMSG(fmt, args...) DISP_LOG_W(fmt, ##args)
-
+#else
+#define DDPDBG(fmt, args...)
+#define DDPMSG(fmt, args...)
+#endif
 #define DDPERR(fmt, args...) DISP_LOG_E(fmt, ##args)
 
 #define DDPDUMP(fmt, ...)						\

@@ -76,3 +76,11 @@ config MT6370_PMU_DSV
 	  Provide positive and negative voltage for LCD display bias.
 	  Say Y here to enable support for
 	  MT6370 dsv device.
+
+config ZTE_MT6370_PMU_REG_BLPWM_HYS_4BIT
+	bool "set BLPWM_HYS as 4bit"
+	default n
+
+config ZTE_MT6370_PMU_REG_DB_VBST_SURPPORT_6200MV
+	bool "set db vbst could support 6200mv"
+	default n

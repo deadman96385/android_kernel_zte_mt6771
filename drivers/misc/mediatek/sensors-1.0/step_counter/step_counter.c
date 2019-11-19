@@ -898,9 +898,12 @@ int step_c_data_report(uint32_t new_counter, int status)
 	struct sensor_event event;
 	static uint32_t last_step_counter;
 
+	STEP_C_PR_ERR("new_counter=%d last_step_counter=%d\n", new_counter, last_step_counter);
+
 	memset(&event, 0, sizeof(struct sensor_event));
 
-	if (last_step_counter != new_counter) {
+	/* if (last_step_counter != new_counter) */
+	{
 		event.flush_action = DATA_ACTION;
 		event.handle = ID_STEP_COUNTER;
 		event.word[0] = new_counter;

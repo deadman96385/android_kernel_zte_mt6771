@@ -33,7 +33,11 @@
 #include <linux/fs.h>
 #include <linux/compat.h>
 #endif
-
+#include"eeprom_i2c_custom_driver.h"
+unsigned int Custom_read_region(struct i2c_client *client,
+				unsigned int addr,
+				unsigned char *data,
+				unsigned int size);
 
 static DEFINE_SPINLOCK(g_spinLock);
 
@@ -48,7 +52,8 @@ static struct i2c_client *g_pstI2CclientG;
 #define I2C_WR_FLAG		(0x1000)
 #define I2C_MASK_FLAG	(0x00ff)
 #endif
-
+#define ZTE_FAILED -1
+#define ZTE_OK 1
 static int Read_I2C_CAM_CAL(u16 a_u2Addr, u32 ui4_length, u8 *a_puBuff)
 {
 	int i4RetValue = 0;
@@ -83,6 +88,30 @@ static int Read_I2C_CAM_CAL(u16 a_u2Addr, u32 ui4_length, u8 *a_puBuff)
 	return 0;
 }
 
+
+static int Write_I2C_CAM_CAL(u16 a_u2Addr, u32 ui4_length, const char *a_puBuff)
+{
+	int i4RetValue = 0;
+
+	if (ui4_length > 8) {
+		pr_debug("exceed I2c-mt65xx.c 8 bytes limitation\n");
+		return ZTE_FAILED;
+	}
+	spin_lock(&g_spinLock);
+	g_pstI2CclientG->addr =
+		g_pstI2CclientG->addr & (I2C_MASK_FLAG | I2C_WR_FLAG);
+	spin_unlock(&g_spinLock);
+
+	i4RetValue = i2c_master_send(g_pstI2CclientG, a_puBuff, 1);
+	if (i4RetValue != 1) {
+		pr_debug("I2C send read address failed!!\n");
+		return ZTE_FAILED;
+	}
+	spin_lock(&g_spinLock);
+	g_pstI2CclientG->addr = g_pstI2CclientG->addr & I2C_MASK_FLAG;
+	spin_unlock(&g_spinLock);
+	return ZTE_OK;
+}
 int iReadData_CAM_CAL(unsigned int ui4_offset,
 	unsigned int ui4_length, unsigned char *pinputdata)
 {
@@ -143,4 +172,23 @@ unsigned int Common_read_region(struct i2c_client *client, unsigned int addr,
 	else
 		return 0;
 }
+unsigned int S5k4h8_read_region(struct i2c_client *client, unsigned int addr,
+				unsigned char *data, unsigned int size)
+{
+	g_pstI2CclientG = client;
+	/* start read otp */
+	Write_I2C_CAM_CAL(0x0100, 1, "0x01");
+	Write_I2C_CAM_CAL(0x0A02, 1, "0x0F");
+	Write_I2C_CAM_CAL(0x0A00, 1, "0x01");
+	if (iReadData_CAM_CAL(addr, size, data) == 0) {
+		/*stop read otp*/
+		Write_I2C_CAM_CAL(0x0A00, 1, "0x00");
+		pr_debug("s5k4h8 read region size = %x , 0x%x\n", size, *data);
+		return size;
+		}
+	else
+		return 0;
+		return 0;
+}
+
 

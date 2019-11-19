@@ -32,8 +32,9 @@ obj-$(CONFIG_MTK_SYS_CIRQ) += cirq/
 obj-$(CONFIG_MTK_GIC_EXT) += ext_gic/
 obj-$(CONFIG_MTK_FIQ_CACHE) += fiq_cache/
 obj-$(CONFIG_MTK_ICE_DEBUG) += ice_debug/
-obj-$(CONFIG_MTK_NFC_SUPPORT) += nfc/
-obj-$(CONFIG_NFC_CHIP_SUPPORT) += nfc/
+#obj-$(CONFIG_MTK_NFC_SUPPORT) += nfc/
+#obj-$(CONFIG_NFC_CHIP_SUPPORT) += nfc/
+obj-$(CONFIG_PN5XX_NFC) += nfc/
 
 obj-$(CONFIG_MMPROFILE) += mmp/
 obj-$(CONFIG_MTK_AUXADC)	+= auxadc/
@@ -136,6 +137,10 @@ endif
 obj-$(CONFIG_TRUSTONIC_TEE_SUPPORT) += gud/
 obj-$(CONFIG_MICROTRUST_TEE_SUPPORT) += teei/
 obj-$(CONFIG_TRUSTKERNEL_TEE_SUPPORT) += tkcore/
+#liuliang
+obj-$(CONFIG_ZTE_TEE_SUPPORT) += optee_linuxdriverV2.0/
+#obj-y += optee_linuxdriverV2.0/
+#liuliang end
 obj-$(CONFIG_MTK_IN_HOUSE_TEE_SUPPORT) += mtee/
 obj-$(CONFIG_MTK_DEBUG_LATCH)	+= debug_latch/
 obj-$(CONFIG_MTK_DEBUG_TRACER)	+= debug_tracer/

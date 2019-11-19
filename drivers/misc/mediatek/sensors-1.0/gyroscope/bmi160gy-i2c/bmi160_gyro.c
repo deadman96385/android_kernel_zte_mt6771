@@ -1066,7 +1066,7 @@ static ssize_t show_status_value(struct device_driver *ddri, char *buf)
 	if (obj->hw)
 		len += snprintf(buf + len, PAGE_SIZE - len,
 				"CUST: %d %d (%d %d)\n",
-				obj->hw->i2c_num, obj->hw->direction,
+				obj->hw->i2c_num, obj->hw->direction_cp,
 				obj->hw->power_id, obj->hw->power_vol);
 	else
 		len += snprintf(buf + len, PAGE_SIZE - len, "CUST: NULL\n");
@@ -1786,15 +1786,17 @@ static int bmg_i2c_probe(struct i2c_client *client, const struct i2c_device_id *
 		goto exit;
 	}
 	obj->hw = hw;
-	err = hwmsen_get_convert(obj->hw->direction, &obj->cvt);
+	err = hwmsen_get_convert(obj->hw->direction_cp, &obj->cvt);
 	if (err) {
-		BMIGYRO_ERR("invalid direction: %d\n", obj->hw->direction);
+		BMIGYRO_ERR("invalid direction: %d\n", obj->hw->direction_cp);
 		goto exit_hwmsen_get_convert_failed;
 	}
 
 	obj_i2c_data = obj;
-	if (!bmi160_acc_i2c_client)
+	if (!bmi160_acc_i2c_client) {
+		err = -EFAULT;
 		goto exit_init_client_failed;
+	}
 	obj->client = bmi160_acc_i2c_client;
 	i2c_set_clientdata(obj->client, obj);
 	/*-----------------------------set debounce-----------------------------------------*/

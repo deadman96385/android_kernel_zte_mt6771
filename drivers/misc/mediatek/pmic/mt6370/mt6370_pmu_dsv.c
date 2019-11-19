@@ -357,7 +357,11 @@ static inline int mt_parse_dt(struct device *dev,
 	}
 
 	if (of_property_read_u32(np, "db_vbst", &val) == 0) {
+#ifdef CONFIG_ZTE_MT6370_PMU_REG_DB_VBST_SURPPORT_6200MV
+		if (val >= 4000 && val <= 6200) {
+#else
 		if (val >= 4000 && val <= 6150) {
+#endif
 			mask->db_vbst.bitfield.vbst = 0x3f;
 			pdata->db_vbst.bitfield.vbst = (val - 4000) / 50;
 		}

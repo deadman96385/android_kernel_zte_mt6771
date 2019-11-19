@@ -84,4 +84,13 @@ extern int charger_manager_enable_kpoc_shutdown(struct charger_consumer *consume
 	bool en);
 extern bool is_power_path_supported(void);
 
+extern int charger_manager_set_input_current_limit_policy(int usb_input_current);
+extern int charger_manager_get_enable_status(void);
+extern int charger_manager_battery_charging_enabled(int enable);
+extern int charger_manager_set_ship_mode(int enable);
+extern int charger_manager_get_ship_mode(void);
+extern bool charger_policy_get_status(void);
+#ifdef CONFIG_CHARGER_PMIC_VOTER
+extern int charger_manager_get_constant_voltage(void);
+#endif
 #endif /* __MTK_CHARGER_H__ */

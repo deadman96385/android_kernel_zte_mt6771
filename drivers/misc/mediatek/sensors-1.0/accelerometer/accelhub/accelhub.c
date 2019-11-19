@@ -15,6 +15,8 @@
 #include <accel.h>
 #include <SCP_sensorHub.h>
 #include "SCP_power_monitor.h"
+#include "scp_helper.h"
+
 
 #define DEBUG 1
 #define SW_CALIBRATION
@@ -183,14 +185,17 @@ static int accelhub_ReadAllReg(char *buf, int bufsize)
 
 static int accelhub_ReadChipInfo(char *buf, int bufsize)
 {
-	u8 databuf[10];
+	u8 databuf[20];
 
-	memset(databuf, 0, sizeof(u8) * 10);
+	memset(databuf, 0, sizeof(u8) * 20);
 
 	if ((buf == NULL) || (bufsize <= 30))
 		return -1;
 
-	sprintf(buf, "ACCELHUB Chip");
+	get_gsensor_chip_info(databuf);
+	memcpy(buf, databuf, (strlen(databuf)+1));
+
+	/*sprintf(buf, "ACCELHUB Chip");*/
 	return 0;
 }
 

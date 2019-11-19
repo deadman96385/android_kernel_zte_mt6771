@@ -32,6 +32,7 @@ int get_accel_dts_func(struct device_node *node, struct acc_hw *hw)
 	u32 i2c_num[] = {0};
 	u32 i2c_addr[G_CUST_I2C_ADDR_NUM] = {0};
 	u32 direction[] = {0};
+	u32 direction_cp[] = {0};
 	u32 power_id[] = {0};
 	u32 power_vol[] = {0};
 	u32 firlen[] = {0};
@@ -52,6 +53,12 @@ int get_accel_dts_func(struct device_node *node, struct acc_hw *hw)
 		ret = of_property_read_u32_array(node, "direction", direction, ARRAY_SIZE(direction));
 		if (ret == 0)
 			hw->direction = direction[0];
+		/*add for two same i2c_addr device compatibility(as bmi160 and icm20600).
+		* If needn't, dts can keep mtk original style.
+		*/
+		ret = of_property_read_u32_array(node, "direction_cp", direction_cp, ARRAY_SIZE(direction_cp));
+		if (ret == 0)
+			hw->direction_cp = direction_cp[0];
 
 		ret = of_property_read_u32_array(node, "power_id", power_id, ARRAY_SIZE(power_id));
 		if (ret == 0) {
@@ -221,6 +228,7 @@ int get_gyro_dts_func(struct device_node *node, struct gyro_hw *hw)
 	u32 i2c_num[] = {0};
 	u32 i2c_addr[C_CUST_I2C_ADDR_NUM] = {0};
 	u32 direction[] = {0};
+	u32 direction_cp[] = {0};
 	u32 power_id[] = {0};
 	u32 power_vol[] = {0};
 	u32 firlen[] = {0};
@@ -241,6 +249,9 @@ int get_gyro_dts_func(struct device_node *node, struct gyro_hw *hw)
 		ret = of_property_read_u32_array(node, "direction", direction, ARRAY_SIZE(direction));
 		if (ret == 0)
 			hw->direction = direction[0];
+		ret = of_property_read_u32_array(node, "direction_cp", direction_cp, ARRAY_SIZE(direction_cp));
+		if (ret == 0)
+			hw->direction_cp = direction_cp[0];
 
 		ret = of_property_read_u32_array(node, "power_id", power_id, ARRAY_SIZE(power_id));
 		if (ret == 0) {

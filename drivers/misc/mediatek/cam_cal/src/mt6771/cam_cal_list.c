@@ -49,6 +49,10 @@ struct stCAM_CAL_LIST_STRUCT g_camCalList[] = {
 	{IMX376_SENSOR_ID, 0xA2, Common_read_region},
 	{IMX214_SENSOR_ID, 0xA0, Common_read_region},
 	{IMX214_MONO_SENSOR_ID, 0xA0, Common_read_region},
+	{OV16B10_SENSOR_ID, 0xA0, Common_read_region},
+	{S5K3L6_SENSOR_ID, 0xA0, Common_read_region},
+	{S5KGD1SP_SENSOR_ID, 0xA8, Common_read_region},
+	{OV16885_SENSOR_ID, 0xA0, Common_read_region},
 	/*  ADD before this line */
 	{0, 0, 0}	/*end of list */
 };

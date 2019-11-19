@@ -77,6 +77,11 @@ struct charger_ops {
 	int (*get_eoc_current)(struct charger_device *, u32 *uA);
 	int (*set_eoc_current)(struct charger_device *, u32 uA);
 
+#ifdef CONFIG_CHARGER_PMIC_VOTER
+	/* set recharge voltage */
+	int (*get_recharge_voltage)(struct charger_device *, u32 *mv);
+	int (*set_recharge_voltage)(struct charger_device *, u32 mv);
+#endif
 	/* kick wdt */
 	int (*kick_wdt)(struct charger_device *);
 
@@ -85,9 +90,13 @@ struct charger_ops {
 	/* PE/PE+ */
 	int (*send_ta_current_pattern)(struct charger_device *, bool is_increase);
 
+#ifdef ZTE_PE_PLUS_INCREASE_TA_VCHR
+	int (*send_ta_current_pattern_zte)(struct charger_device *, bool is_increase);
+#endif
+
 	/* PE+ 20*/
 	int (*send_ta20_current_pattern)(struct charger_device *, u32 uV);
-	int (*set_ta20_reset)(struct charger_device *);
+	int (*reset_ta)(struct charger_device *);
 	int (*enable_cable_drop_comp)(struct charger_device *, bool en);
 
 	int (*set_mivr)(struct charger_device *, u32 uV);
@@ -137,6 +146,10 @@ struct charger_ops {
 	int (*get_tchg_adc)(struct charger_device *, int *tchg_min,
 		int *tchg_max);
 	int (*get_zcv)(struct charger_device *, u32 *uV);
+
+	/* enable/disable ship mode */
+	int (*set_ship_mode)(struct charger_device *, bool en);
+	int (*get_ship_mode)(struct charger_device *, bool *en);
 };
 
 static inline void *charger_dev_get_drvdata(const struct charger_device *charger_dev)
@@ -172,6 +185,8 @@ extern int charger_dev_get_charging_current(struct charger_device *charger_dev, 
 extern int charger_dev_get_min_charging_current(struct charger_device *charger_dev, u32 *uA);
 extern int charger_dev_set_input_current(struct charger_device *charger_dev, u32 uA);
 extern int charger_dev_get_input_current(struct charger_device *charger_dev, u32 *uA);
+extern int charger_dev_set_ship_mode(struct charger_device *charger_dev, bool en);
+extern int charger_dev_get_ship_mode(struct charger_device *charger_dev, bool *en);
 extern int charger_dev_get_min_input_current(struct charger_device *charger_dev, u32 *uA);
 extern int charger_dev_set_eoc_current(struct charger_device *charger_dev, u32 uA);
 extern int charger_dev_get_eoc_current(struct charger_device *charger_dev, u32 *uA);
@@ -198,12 +213,20 @@ extern int charger_dev_run_aicl(struct charger_device *charger_dev, u32 *uA);
 extern int charger_dev_reset_eoc_state(struct charger_device *charger_dev);
 extern int charger_dev_safety_check(struct charger_device *charger_dev);
 
+#ifdef CONFIG_CHARGER_PMIC_VOTER
+extern int charger_dev_get_recharge_voltage(struct charger_device *charger_dev, u32 *uV);
+extern int charger_dev_set_recharge_voltage(struct charger_device *charger_dev, u32 uV);
+#endif
+
 /* PE */
 extern int charger_dev_send_ta_current_pattern(struct charger_device *charger_dev, bool is_increase);
+#ifdef ZTE_PE_PLUS_INCREASE_TA_VCHR
+extern int charger_dev_send_ta_current_pattern_zte(struct charger_device *charger_dev, bool is_increase);
+#endif
 
 /* PE 2.0 */
 extern int charger_dev_send_ta20_current_pattern(struct charger_device *charger_dev, u32 uV);
-extern int charger_dev_set_ta20_reset(struct charger_device *charger_dev);
+extern int charger_dev_reset_ta(struct charger_device *charger_dev);
 extern int charger_dev_set_pe20_efficiency_table(struct charger_device *charger_dev);
 extern int charger_dev_enable_cable_drop_comp(struct charger_device *charger_dev, bool en);
 

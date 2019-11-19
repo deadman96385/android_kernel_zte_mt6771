@@ -608,3 +608,4 @@ config MTK_DYNAMIC_LOAD_STORE_BYPASS_WA
 endmenu    # Misc
 
 endif
+source "drivers/misc/mediatek/optee_linuxdriverV2.0/Kconfig"

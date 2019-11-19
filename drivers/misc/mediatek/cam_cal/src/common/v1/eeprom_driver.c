@@ -46,6 +46,7 @@
 #define CAM_CAL_I2C_DEV2_NAME "CAM_CAL_DEV2"
 #define CAM_CAL_I2C_DEV3_NAME "CAM_CAL_DEV3"
 #define CAM_CAL_I2C_DEV4_NAME "CAM_CAL_DEV4"
+#define OV16885_SENSOR_ID 0x16885
 
 static dev_t g_devNum = MKDEV(CAM_CAL_DEV_MAJOR_NUMBER, 0);
 static struct cdev *g_charDrv;
@@ -154,6 +155,11 @@ static int EEPROM_get_cmd_info(unsigned int sensorID,
 				       pCamCalList[i].sensorID);
 
 				cmdInfo->i2cAddr = pCamCalList[i].slaveID >> 1;
+				if (strncmp(CONFIG_TS_FIRMWARE, "firmware_spacexm", 16) == 0) {
+						if (sensorID == OV16885_SENSOR_ID) {
+							cmdInfo->i2cAddr = 0xA8 >> 1;
+						}
+				}
 				cmdInfo->readCMDFunc =
 					pCamCalList[i].readCamCalData;
 

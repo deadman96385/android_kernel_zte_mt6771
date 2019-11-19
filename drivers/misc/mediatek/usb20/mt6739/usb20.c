@@ -520,6 +520,7 @@ void mt_usb_disconnect(void)
 	}
 	/* issue connection work */
 	DBG(0, "issue work\n");
+	cable_mode = CABLE_MODE_NORMAL;
 	queue_delayed_work(mtk_musb->st_wq, &connection_work, 0);
 	DBG(0, "[MUSB] USB disconnect\n");
 }

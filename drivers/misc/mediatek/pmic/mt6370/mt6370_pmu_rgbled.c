@@ -43,7 +43,7 @@ struct mt6370_pmu_rgbled_data {
 #define MT_LED_ATTR(_name) {\
 	.attr = {\
 		.name = #_name,\
-		.mode = 0644,\
+		.mode = 0666,\
 	},\
 	.show = mt_led_##_name##_attr_show,\
 	.store = mt_led_##_name##_attr_store,\
@@ -73,6 +73,10 @@ static const uint8_t rgbled_init_data[] = {
 	0x11, /* MT6370_PMU_REG_RGBCHRINDTONTOFF: 0x96 */
 	0xff, /* MT6370_PMU_REG_RGBOPENSHORTEN: 0x97 */
 };
+
+/* zte set led current start */
+int led_current[4] = {0x7, 0x7, 0x7, 0x3};
+/* zte set led current end */
 
 static inline int mt6370_pmu_led_get_index(struct led_classdev *led_cdev)
 {
@@ -122,19 +126,22 @@ static void mt6370_pmu_led_bright_set(struct led_classdev *led_cdev,
 	case MT6370_PMU_LED1:
 		reg_addr = MT6370_PMU_REG_RGB1ISINK;
 		en_mask = 0x80;
+		reg_mask = led_current[led_index];
 		break;
 	case MT6370_PMU_LED2:
 		reg_addr = MT6370_PMU_REG_RGB2ISINK;
 		en_mask = 0x40;
+		reg_mask = led_current[led_index];
 		break;
 	case MT6370_PMU_LED3:
 		reg_addr = MT6370_PMU_REG_RGB3ISINK;
 		en_mask = 0x20;
+		reg_mask = led_current[led_index];
 		break;
 	case MT6370_PMU_LED4:
 		reg_addr = MT6370_PMU_REG_RGBCHRINDCTRL;
-		reg_mask = 0x3;
 		en_mask = 0x10;
+		reg_mask = led_current[led_index];
 		need_enable_timer = false;
 		break;
 	default:
@@ -1212,7 +1219,7 @@ static inline int mt_parse_dt(struct device *dev)
 	int name_cnt = 0, trigger_cnt = 0;
 	struct device_node *np = dev->of_node;
 	int ret = 0;
-
+	int value = 0, i = 0;
 	while (true) {
 		const char *name = NULL;
 
@@ -1233,6 +1240,12 @@ static inline int mt_parse_dt(struct device *dev)
 			break;
 		pdata->led_default_trigger[trigger_cnt] = name;
 		trigger_cnt++;
+	}
+	for (i = 0; i < 4; i++) {
+		ret = of_property_read_u32_index(np, "mt,led_driver_current", i, &value);
+		if (ret)
+			break;
+		led_current[i]  = value;
 	}
 	if (name_cnt != MT6370_PMU_MAXLED || trigger_cnt != MT6370_PMU_MAXLED)
 		return -EINVAL;

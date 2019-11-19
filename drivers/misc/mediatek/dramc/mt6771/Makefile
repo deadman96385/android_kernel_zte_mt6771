@@ -21,3 +21,10 @@ ccflags-y += -I$(srctree)/drivers/misc/mediatek/base/power/include/
 
 obj-$(CONFIG_MTK_DRAMC) := mtk_dramc.o
 ccflags-$(CONFIG_MTK_DRAMC) += -DDEBUG
+
+#zte add for ddr memtest
+ifneq ($(strip $(TARGET_BUILD_VARIANT)),user)
+ifeq ($(CONFIG_MTK_PLATFORM), "mt6771")
+ccflags-y += -DDRAMC_MEMTEST_DEBUG_SUPPORT
+endif
+endif

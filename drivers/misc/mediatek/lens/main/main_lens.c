@@ -165,6 +165,9 @@ void AFRegulatorCtrl(int Stage)
 				else
 					regVCAMAF = regulator_get(lens_device, "vcamaf");
 
+				if (strncmp(CONFIG_ARCH_MTK_PROJECT, "k71v1_64_bsp", 12) == 0)
+					regVCAMAF = regulator_get(lens_device, "vldo28");
+
 				LOG_INF("[Init] regulator_get %p\n", regVCAMAF);
 
 				lens_device->of_node = kd_node;
@@ -610,6 +613,20 @@ static int AF_i2c_remove(struct i2c_client *client)
 {
 	return 0;
 }
+static void  AF_powerdown_mode(void)
+{
+	char puSendCmd[2] = { 0x80, 0x00 };
+	int i4RetValue_af = 0;
+
+	g_pstAF_I2Cclient->addr = 0x18;
+	g_pstAF_I2Cclient->addr = g_pstAF_I2Cclient->addr >> 1;
+	i4RetValue_af = i2c_master_send(g_pstAF_I2Cclient, puSendCmd, 2);
+	LOG_INF("af power down\n");
+	if (i4RetValue_af < 0) {
+				LOG_INF("I2C send failed!!\n");
+	}
+}
+
 
 /* Kirby: add new-style driver {*/
 static int AF_i2c_probe(struct i2c_client *client, const struct i2c_device_id *id)
@@ -636,6 +653,10 @@ static int AF_i2c_probe(struct i2c_client *client, const struct i2c_device_id *i
 #if !defined(CONFIG_MTK_LEGACY)
 	AFRegulatorCtrl(0);
 #endif
+
+	if (strncmp(CONFIG_TS_FIRMWARE, "firmware_muses", 14) == 0) {
+		AF_powerdown_mode();
+	}
 
 	LOG_INF("Attached!!\n");
 

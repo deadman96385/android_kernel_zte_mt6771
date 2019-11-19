@@ -745,12 +745,12 @@ static ssize_t ps_store_batch(struct device *dev, struct device_attribute *attr,
 		err = cxt->ps_ctl.batch(0, cxt->ps_delay_ns, cxt->ps_latency_ns);
 	else
 		err = cxt->ps_ctl.batch(0, cxt->ps_delay_ns, 0);
-	ps_data_report(1, SENSOR_STATUS_ACCURACY_HIGH);
+	/* ps_data_report(1, SENSOR_STATUS_ACCURACY_HIGH); */
 #else
 	err = ps_enable_and_batch();
 #endif
 	pr_debug("prox_state:%d\n", atomic_read(&prox_state));
-	ps_data_report(atomic_read(&prox_state), SENSOR_STATUS_ACCURACY_HIGH);
+	/* ps_data_report(atomic_read(&prox_state), SENSOR_STATUS_ACCURACY_HIGH); */
 	mutex_unlock(&alsps_context_obj->alsps_op_mutex);
 	ALSPS_LOG("ps_store_batch done: %d\n", cxt->is_ps_batch_enable);
 	if (err)

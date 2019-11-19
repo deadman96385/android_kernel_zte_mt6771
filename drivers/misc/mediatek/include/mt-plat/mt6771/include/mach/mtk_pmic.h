@@ -56,4 +56,7 @@
 
 /* ADC Channel Number, not uesed and removed */
 
+
+unsigned int mt6358_upmu_set_rg_ldo_vio28_en(unsigned int val);
+
 #endif /* _CUST_PMIC_H_ */

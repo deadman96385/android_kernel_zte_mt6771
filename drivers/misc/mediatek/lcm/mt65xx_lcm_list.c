@@ -34,6 +34,83 @@ LCM_DSI_MODE_CON lcm_dsi_mode;
 #endif
 
 LCM_DRIVER *lcm_driver_list[] = {
+#if defined(ZTE_DURIAN_FT8006P_720P_6P49_DSI_VDO_SKYWORTH_HUAJIACAI)
+	&zte_durian_ft8006p_720p_6p49_dsi_vdo_skyworth_huajiacai_lcm_drv,
+#endif
+#if defined(ZTE_DURIAN_HX83102D_720P_6P49_DSI_VDO_LEAD_AUO)
+	&zte_durian_hx83102d_720p_6p49_dsi_vdo_lead_auo_lcm_drv,
+#endif
+#if defined(ZTE_DURIAN_FT8006P_720P_6P49_DSI_VDO_DIJING_HUAJIACAI)
+	&zte_durian_ft8006p_720p_6p49_dsi_vdo_dijing_huajiacai_lcm_drv,
+#endif
+#if defined(ZTE_DURIAN_ILI9881H_720P_6P49_SKYWORTH_HUAJIACAI)
+	&zte_durian_ili9881h_720p_6p49_skyworth_huajiacai_lcm_drv,
+#endif
+#if defined(ST7701S_480P_DSI_VDO_HSD_EASYQUICK)
+	&st7701s_480p_dsi_vdo_hsd_easyquick_lcm_drv,
+#endif
+#if defined(ST7701S_480P_DSI_VDO_HSD_LCETRON)
+	&st7701s_480p_dsi_vdo_hsd_lcetron_lcm_drv,
+#endif
+#if defined(JD9161Z_480P_DSI_VDO_CTC_LEAD)
+	&jd9161Z_480p_dsi_vdo_ctc_lead_lcm_drv,
+#endif
+
+#if defined(OTM8019A_480P_DSI_VDO_CTC_LCETRON)
+	&otm8019a_480p_dsi_vdo_ctc_lcetron_lcm_drv,
+#endif
+
+#if defined(FT8719_FHD_DSI_VDO_DIJING_JDI)
+	&ft8719_fhd_dsi_vdo_dijing_jdi_lcm_drv,
+#endif
+#if defined(FT8719_FHD_DSI_VDO_SKYWORTH_AUO)
+	&ft8719_fhd_dsi_vdo_skyworth_auo_lcm_drv,
+#endif
+#if defined(FT8719_FHD_DSI_VDO_LEAD_AUO)
+	&ft8719_fhd_dsi_vdo_lead_auo_lcm_drv,
+#endif
+#if defined(HX83112A_FHD_DSI_VDO_DIJING_JDI)
+	&hx83112a_fhd_dsi_vdo_dijing_jdi_lcm_drv,
+#endif
+#if defined(ZTE_SPACEXM_FT8719_FHD_DSI_VDO_DIJING_JDI)
+	&zte_spacexm_ft8719_fhd_dsi_vdo_dijing_jdi_lcm_drv,
+#endif
+#if defined(ZTE_SPACEXM_FT8719_FHD_DSI_VDO_SKYWORTH_AUO)
+	&zte_spacexm_ft8719_fhd_dsi_vdo_skyworth_auo_lcm_drv,
+#endif
+#if defined(ZTE_SPACEXM_FT8719_FHD_DSI_VDO_LEAD_AUO)
+	&zte_spacexm_ft8719_fhd_dsi_vdo_lead_auo_lcm_drv,
+#endif
+#if defined(ILI9881C_720P_6P26_DSI_VDO_SKYWORTH_QC)
+	&ili9881c_720p_6p26_dsi_vdo_skyworth_qc_lcm_drv,
+#endif
+#if defined(HX8394F_720P_6P26_DSI_VDO_LEAD_HSD)
+	&hx8394f_720p_6p26_dsi_vdo_lead_hsd_lcm_drv,
+#endif
+#if defined(ICNL9911_720P_6P_DSI_VDO_SKYWORTH_HUAJIACAI)
+	&icnl9911_720p_6p_dsi_vdo_skyworth_huajiacai_lcm_drv,
+#endif
+#if defined(FT8006P_720P_6P_DSI_VDO_LCETRON_HUAJIACAI)
+	&ft8006p_720p_6p_dsi_vdo_lcetron_huajiacai_lcm_drv,
+#endif
+#if defined(ZTE_APOLLO_FT8006P_720P_6P_DSI_VDO_LEAD_HUAJIACAI)
+	&zte_apollo_ft8006p_720p_6p_dsi_vdo_lead_huajiacai_lcm_drv,
+#endif
+#if defined(ICNL9911_720P_6P_DSI_VDO_SKYWORTH_HUAJIACAI_4LANE)
+	&icnl9911_720p_6p_dsi_vdo_skyworth_huajiacai_4lane_lcm_drv,
+#endif
+#if defined(ST7703_720P_6P26_DSI_VDO_LEAD_CPT)
+	&st7703_720p_6p26_dsi_vdo_lead_cpt_lcm_drv,
+#endif
+#if defined(HD720_HX8394F_LEAD_CPT)
+	&hd720_hx8394f_lead_cpt_drv,
+#endif
+#if defined(HD720_ILI9881C_SKYWORTH_HSD)
+	&hd720_ili9881c_skyworth_hsd_drv,
+#endif
+#if defined(HD720_JD9365D_LCETRON_HSD)
+	&hd720_jd9365d_lcetron_hsd_drv,
+#endif
 #if defined(OTM1284A_HD720_DSI_VDO_TM)
 	&otm1284a_hd720_dsi_vdo_tm_lcm_drv,
 #endif

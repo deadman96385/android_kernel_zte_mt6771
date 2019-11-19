@@ -72,7 +72,7 @@ static void __iomem *pwrap_base;
 #define PMIC_REG_SHIFT				0
 
 
-#define PMIC_CW00_INIT_VAL			0x4E1D
+#define PMIC_CW00_INIT_VAL			0x4EDD
 #define PMIC_CW11_INIT_VAL			0xA000
 /* TODO: BBLPM HW mode */
 #define XO_BB_LPM_HW		(0x1 << 0)
@@ -1482,8 +1482,9 @@ void clk_buf_post_init(void)
 	/* no need to use XO_EXT if storage is emmc */
 	clk_buf_ctrl_internal(CLK_BUF_UFS, false);
 #endif
-#ifndef CONFIG_NFC_CHIP_SUPPORT
+/* #ifndef CONFIG_NFC_CHIP_SUPPORT */
 	/* no need to use XO_NFC if no NFC */
+#if 0
 	clk_buf_ctrl_internal(CLK_BUF_NFC, false);
 #endif
 #ifdef CLKBUF_USE_BBLPM

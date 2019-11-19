@@ -89,5 +89,8 @@ extern struct IMGSENSOR_HW_POWER_SEQ platform_power_sequence[];
 extern struct IMGSENSOR_HW_POWER_SEQ sensor_power_sequence[];
 extern enum IMGSENSOR_RETURN (*hw_open[IMGSENSOR_HW_ID_MAX_NUM]) (struct IMGSENSOR_HW_DEVICE **);
 extern struct IMGSENSOR_HW_CFG imgsensor_custom_config[];
+#if defined(GC5025_MIPI_RAW) || defined(SP5508_MIPI_RAW)
+extern struct IMGSENSOR_HW_CFG imgsensor_custom_config_b[];
+#endif
 #endif
 

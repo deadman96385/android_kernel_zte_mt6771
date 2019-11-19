@@ -41,10 +41,12 @@
 #include <linux/delay.h>
 #include "scp_feature_define.h"
 #include "scp_ipi.h"
+#include "scp_err_info.h"
 #include "scp_helper.h"
 #include "scp_excep.h"
 #include "scp_dvfs.h"
 #include "mtk_spm_resource_req.h"
+#include <mach/mtk_pmic.h>
 
 #ifdef CONFIG_OF_RESERVED_MEM
 #include <linux/of_reserved_mem.h>
@@ -448,6 +450,65 @@ static void scp_A_ready_ipi_handler(int id, void *data, unsigned int len)
 	}
 }
 
+/*
+ * Get gsensor chipinfo
+*/
+static char gsensor_chip_info[20] = {0};
+void get_gsensor_chip_info(char *chip_info)
+{
+	memcpy(chip_info, gsensor_chip_info, (strlen(gsensor_chip_info)));
+}
+EXPORT_SYMBOL_GPL(get_gsensor_chip_info);
+
+void report_hub_dmd(uint32_t case_id, uint32_t sensor_id, char *context)
+{
+	if ((sensor_id == ERR_SENSOR_ALS) && (case_id == ERR_CASE_I2C)) {
+		pr_err("[SCP] report_hub_dmd: als i2c read error, repower it!\n");
+		mt6358_upmu_set_rg_ldo_vio28_en(0);
+		mdelay(10);
+		mt6358_upmu_set_rg_ldo_vio28_en(1);
+	}
+
+	if ((case_id == CHIPINFO_CASE) &&
+		((sensor_id == ERR_SENSOR_ACC) || (sensor_id == ERR_SENSOR_ACC_GYR))) {
+		int len = strlen(context);
+
+		pr_debug("[SCP] report_hub_dmd: gsensor chipinfo reported!\n");
+		memcpy(gsensor_chip_info, context, (len - 6));
+		gsensor_chip_info[(len-5)] = '\0';
+		pr_debug("gsensor_chip_info %s\n", gsensor_chip_info);
+	}
+}
+
+/*
+ * Handle notification from scp.
+ * Report error from SCP to other kernel driver.
+ * @param id:   ipi id
+ * @param data: ipi data
+ * @param len:  length of ipi data
+ */
+static void scp_err_info_handler(int id, void *data, unsigned int len)
+{
+	struct error_info *info = (struct error_info *)data;
+
+	if (sizeof(*info) != len) {
+		pr_err("[SCP] scp_err_info_handler error: incorrect size %d of error_info\n",
+				len);
+		WARN_ON(1);
+		return;
+	}
+
+	/* Ensure the context[] is terminated by the NULL character. */
+	info->context[ERR_MAX_CONTEXT_LEN - 1] = '\0';
+	pr_err("[SCP] scp_err_info_handler Error_info: case id: %u\n", info->case_id);
+	pr_err("[SCP] scp_err_info_handler Error_info: sensor id: %u\n", info->sensor_id);
+	pr_err("[SCP] scp_err_info_handler Error_info: context: %s\n", info->context);
+
+	if (report_hub_dmd)
+		report_hub_dmd(info->case_id, info->sensor_id, info->context);
+	else
+		pr_err("[SCP] scp_err_info_handler warning: report_hub_dmd() not defined.\n");
+}
 
 /*
  * @return: 1 if scp is ready for running tasks
@@ -1654,6 +1715,9 @@ static int __init scp_init(void)
 
 	scp_ipi_registration(IPI_SCP_A_READY,
 			 scp_A_ready_ipi_handler, "scp_A_ready");
+
+	scp_ipi_registration(IPI_SCP_ERROR_INFO,
+			scp_err_info_handler, "scp_err_info_handler");
 
 	/* scp ramdump initialise */
 	pr_debug("[SCP] ramdump init\n");

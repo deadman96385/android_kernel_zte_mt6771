@@ -306,6 +306,7 @@ static void dump_charger_name(enum charger_type type)
 
 int hw_charging_get_charger_type(void)
 {
+	int recheck_count = 0;
 	enum charger_type CHR_Type_num = CHARGER_UNKNOWN;
 
 #ifdef CONFIG_MTK_USB2JTAG_SUPPORT
@@ -314,22 +315,36 @@ int hw_charging_get_charger_type(void)
 		return STANDARD_HOST;
 	}
 #endif
+	while (CHR_Type_num == CHARGER_UNKNOWN || CHR_Type_num == NONSTANDARD_CHARGER) {
+		hw_bc11_init();
 
-	hw_bc11_init();
-
-	if (hw_bc11_DCD()) {
-		if (hw_bc11_stepA1())
-			CHR_Type_num = APPLE_2_1A_CHARGER;
-		else
-			CHR_Type_num = NONSTANDARD_CHARGER;
-	} else {
-		if (hw_bc11_stepA2()) {
-			if (hw_bc11_stepB2())
-				CHR_Type_num = STANDARD_CHARGER;
+		if (hw_bc11_DCD()) {
+			if (hw_bc11_stepA1())
+				CHR_Type_num = APPLE_2_1A_CHARGER;
 			else
-				CHR_Type_num = CHARGING_HOST;
-		} else
-			CHR_Type_num = STANDARD_HOST;
+				CHR_Type_num = NONSTANDARD_CHARGER;
+		} else {
+			if (hw_bc11_stepA2()) {
+				if (hw_bc11_stepB2())
+					CHR_Type_num = STANDARD_CHARGER;
+				else
+					CHR_Type_num = CHARGING_HOST;
+			} else
+				CHR_Type_num = STANDARD_HOST;
+		}
+
+		if (CHR_Type_num != CHARGER_UNKNOWN && CHR_Type_num != NONSTANDARD_CHARGER) {
+			recheck_count = 0;
+			break;
+		}
+		recheck_count++;
+		pr_info("abnormal usb type %d, recheck count %d\n", CHR_Type_num, recheck_count);
+
+		/* 12 times: 5s,   23 times: 10s,   30 times: 13s,   50 times: 22s */
+		if (recheck_count >= 12) {
+			recheck_count = 0;
+			break;
+		}
 	}
 
 	if (CHR_Type_num != STANDARD_CHARGER)
@@ -408,7 +423,9 @@ void chrdet_int_handler(void)
 		    || boot_mode == LOW_POWER_OFF_CHARGING_BOOT) {
 			pr_info("[chrdet_int_handler] Unplug Charger/USB\n");
 #ifndef CONFIG_TCPC_CLASS
+#ifndef ZTE_FEATURE_PV_AR
 			orderly_poweroff(true);
+#endif
 #else
 			return;
 #endif

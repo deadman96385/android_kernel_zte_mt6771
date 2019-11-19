@@ -5117,6 +5117,18 @@ int force_back_to_full_roi(void)
 	return ret;
 }
 
+static unsigned int shutdown_suspend_flag = 0;
+void primary_display_set_shutdown_suspend_flag(unsigned int is_shutdowm_suspend)
+{
+	shutdown_suspend_flag = is_shutdowm_suspend;
+	pr_info("%s: shutdown_suspend_flag = %d\n", __func__, shutdown_suspend_flag);
+}
+
+unsigned int primary_display_get_shutdown_suspend_flag(void)
+{
+	return shutdown_suspend_flag;
+}
+
 int primary_display_suspend(void)
 {
 	enum DISP_STATUS ret = DISP_STATUS_OK;

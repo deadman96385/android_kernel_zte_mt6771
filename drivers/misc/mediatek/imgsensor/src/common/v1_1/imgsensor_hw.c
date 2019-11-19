@@ -28,6 +28,12 @@ char *imgsensor_sensor_idx_name[IMGSENSOR_SENSOR_IDX_MAX_NUM] = {
 	IMGSENSOR_SENSOR_IDX_NAME_MAIN3
 };
 
+#if defined(GC5025_MIPI_RAW) || defined(SP5508_MIPI_RAW)
+#define IDX_LENGTH 100
+extern int zte_get_boardid(void);
+#define FORNT_SENSOR_AVDD_PMIC (zte_get_boardid() > 0)
+#endif
+
 enum IMGSENSOR_RETURN imgsensor_hw_init(struct IMGSENSOR_HW *phw)
 {
 	struct IMGSENSOR_HW_SENSOR_POWER      *psensor_pwr;
@@ -79,6 +85,23 @@ enum IMGSENSOR_RETURN imgsensor_hw_release_all(struct IMGSENSOR_HW *phw)
 	return IMGSENSOR_RETURN_SUCCESS;
 }
 
+#if defined(GC5025_MIPI_RAW) || defined(SP5508_MIPI_RAW)
+static char *convertOfP671S02(enum IMGSENSOR_SENSOR_IDX sensor_idx,
+		char *pcurr_idx, char *pdest_idx)
+{
+	if (sensor_idx == IMGSENSOR_SENSOR_IDX_SUB) {
+		memset(pdest_idx, 0, IDX_LENGTH);
+		pdest_idx[0] = 'b';
+		pdest_idx[1] = '_';
+		strlcat(pdest_idx, pcurr_idx, IDX_LENGTH);
+		PK_DBG("COVERT: %s, pcurr_idx=%s", pdest_idx, pcurr_idx);
+		return  FORNT_SENSOR_AVDD_PMIC ? pdest_idx : pcurr_idx;
+	} else {
+		return pcurr_idx;
+	}
+}
+#endif
+
 static enum IMGSENSOR_RETURN imgsensor_hw_power_sequence(
 		struct IMGSENSOR_HW             *phw,
 		enum   IMGSENSOR_SENSOR_IDX      sensor_idx,
@@ -91,12 +114,19 @@ static enum IMGSENSOR_RETURN imgsensor_hw_power_sequence(
 	struct IMGSENSOR_HW_POWER_INFO   *ppwr_info;
 	struct IMGSENSOR_HW_DEVICE       *pdev;
 	int                               pin_cnt = 0;
+#if defined(GC5025_MIPI_RAW) || defined(SP5508_MIPI_RAW)
+	char cat_idx[IDX_LENGTH];
+#endif
 
 	static DEFINE_RATELIMIT_STATE(ratelimit, 5 * HZ, 10);
 
 	while (ppwr_seq->idx != NULL &&
 		ppwr_seq < ppower_sequence + IMGSENSOR_HW_SENSOR_MAX_NUM &&
+	#if defined(GC5025_MIPI_RAW) || defined(SP5508_MIPI_RAW)
+		strcmp(ppwr_seq->idx, convertOfP671S02(sensor_idx, pcurr_idx, cat_idx))) {
+	#else
 		strcmp(ppwr_seq->idx, pcurr_idx)) {
+	#endif
 		ppwr_seq++;
 	}
 
@@ -238,7 +268,21 @@ enum IMGSENSOR_RETURN imgsensor_hw_dump(struct IMGSENSOR_HW *phw)
 
 struct IMGSENSOR_HW_CFG *imgsensor_hw_get_cfg(enum IMGSENSOR_SENSOR_IDX sensor_idx)
 {
+#if defined(GC5025_MIPI_RAW) || defined(SP5508_MIPI_RAW)
+	struct IMGSENSOR_HW_CFG *pcust_cfg;
+
+	if (sensor_idx == IMGSENSOR_SENSOR_IDX_SUB) {
+		if (FORNT_SENSOR_AVDD_PMIC) {
+			pcust_cfg = imgsensor_custom_config_b;
+		} else {
+			pcust_cfg = imgsensor_custom_config;
+		}
+	} else {
+		pcust_cfg = imgsensor_custom_config;
+	}
+#else
 	struct IMGSENSOR_HW_CFG *pcust_cfg = imgsensor_custom_config;
+#endif
 
 	while (pcust_cfg->sensor_idx != sensor_idx && pcust_cfg->sensor_idx != IMGSENSOR_SENSOR_IDX_NONE)
 		pcust_cfg++;

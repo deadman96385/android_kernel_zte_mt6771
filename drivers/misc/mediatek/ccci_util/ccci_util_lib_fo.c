@@ -159,12 +159,22 @@ static int s_g_curr_ccci_fo_version; /* Note, this for feature option solution v
 
 static const unsigned int ubin_convert_table_src[] = {
 	(MD_CAP_GSM|MD_CAP_TDD_LTE|MD_CAP_FDD_LTE|MD_CAP_CDMA2000),
+	#if defined(ZTE_FEATURE_VZWVISIBLE_LTE_ONLY)
+	(MD_CAP_GSM|MD_CAP_WCDMA|MD_CAP_CDMA2000),
+	(MD_CAP_FDD_LTE)
+	#else
 	(MD_CAP_GSM|MD_CAP_WCDMA|MD_CAP_CDMA2000)
+	#endif
 };
 
 static const unsigned int ubin_convert_table_des[] = {
 	(MD_CAP_GSM|MD_CAP_WCDMA|MD_CAP_TDD_LTE|MD_CAP_FDD_LTE|MD_CAP_CDMA2000),
+	#if defined(ZTE_FEATURE_VZWVISIBLE_LTE_ONLY)
+	(MD_CAP_GSM|MD_CAP_WCDMA|MD_CAP_TDD_LTE|MD_CAP_FDD_LTE|MD_CAP_CDMA2000),
+	(MD_CAP_FDD_LTE|MD_CAP_WCDMA|MD_CAP_GSM)
+	#else
 	(MD_CAP_GSM|MD_CAP_WCDMA|MD_CAP_TDD_LTE|MD_CAP_FDD_LTE|MD_CAP_CDMA2000)
+	#endif
 };
 
 static unsigned int compatible_convert(unsigned int src_rat)

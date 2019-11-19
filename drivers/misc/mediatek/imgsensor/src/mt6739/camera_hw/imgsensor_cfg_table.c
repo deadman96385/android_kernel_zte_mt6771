@@ -126,6 +126,122 @@ struct IMGSENSOR_HW_POWER_SEQ platform_power_sequence[] = {
 
 /* Legacy design */
 struct IMGSENSOR_HW_POWER_SEQ sensor_power_sequence[] = {
+#if defined(GC5025_MIPI_RAW)
+		{SENSOR_DRVNAME_GC5025_MIPI_RAW,
+			{
+				{SensorMCLK, Vol_High, 0},
+				{PDN, Vol_Low, 0},
+				{RST, Vol_Low, 0},
+				{DOVDD, Vol_1800, 1},
+				{DVDD, Vol_1200, 1},
+				{AVDD, Vol_2800, 1},
+				{PDN, Vol_High, 2},
+				{RST, Vol_High, 5},
+				{PDN, Vol_High, 0},
+			},
+		},
+#endif
+#if defined(S5K4H8_MIPI_RAW)
+	{SENSOR_DRVNAME_S5K4H8_MIPI_RAW,
+		{
+			{SensorMCLK, Vol_High, 0},
+			{PDN, Vol_Low, 0},
+			{RST, Vol_Low, 0},
+			{DOVDD, Vol_1800, 0},
+			{AVDD, Vol_2800, 0},
+			{DVDD, Vol_1200, 0},
+			{PDN, Vol_High, 0},
+			{RST, Vol_High, 5},
+		},
+	},
+#endif
+#if defined(S5K5E9YX_MIPI_RAW)
+	{SENSOR_DRVNAME_S5K5E9YX_MIPI_RAW,
+		{
+			{SensorMCLK, Vol_High, 0},
+			{PDN, Vol_Low, 0},
+			{RST, Vol_Low, 0},
+			{DOVDD, Vol_1800, 0},
+			{AVDD, Vol_2800, 0},
+			{DVDD, Vol_1200, 0},
+			{PDN, Vol_High, 0},
+			{RST, Vol_High, 5},
+		},
+	},
+#endif
+#if defined(ST55A_MIPI_RAW)
+	{SENSOR_DRVNAME_ST55A_MIPI_RAW,
+			{
+				{SensorMCLK, Vol_High, 0},
+				{PDN, Vol_Low, 0},
+				{RST, Vol_Low, 0},
+				{DVDD, Vol_1200, 1},
+				{AVDD, Vol_2800, 1},
+				{DOVDD, Vol_1800, 1},
+				{PDN, Vol_High, 0},
+				{RST, Vol_High, 0},
+			},
+		},
+#endif
+
+#if defined(SP2609_MIPI_RAW)
+	{SENSOR_DRVNAME_SP2609_MIPI_RAW,
+		{
+			{SensorMCLK, Vol_High, 0},
+			{PDN, Vol_Low, 0},
+			{RST, Vol_Low, 0},
+			{DOVDD, Vol_1800, 1},
+			{DVDD, Vol_1200, 1},
+			{AVDD, Vol_2800, 1},
+			{PDN, Vol_High, 5, Vol_High, 1},
+			{PDN, Vol_Low, 5},
+			{RST, Vol_High, 5},
+		},
+	},
+#endif
+#if defined(HI556_MIPI_RAW_125)
+	{SENSOR_DRVNAME_HI556_MIPI_RAW_125,
+		{
+			{SensorMCLK, Vol_High, 0},
+			{PDN, Vol_Low, 0},
+			{RST, Vol_Low, 0},
+			{DOVDD, Vol_1800, 0},
+			{AVDD, Vol_2800, 0},
+			{DVDD, Vol_1200, 0},
+			{PDN, Vol_High, 2},
+			{RST, Vol_High, 5},
+		},
+	},
+#endif
+#if defined(HI556_MIPI_RAW)
+	{SENSOR_DRVNAME_HI556_MIPI_RAW,
+		{
+			{SensorMCLK, Vol_High, 0},
+			{PDN, Vol_Low, 0},
+			{RST, Vol_Low, 0},
+			{DOVDD, Vol_1800, 0},
+			{AVDD, Vol_2800, 0},
+			{DVDD, Vol_1200, 0},
+			{PDN, Vol_High, 2},
+			{RST, Vol_High, 5},
+		},
+	},
+#endif
+#if defined(SP2509_MIPI_RAW)
+	{SENSOR_DRVNAME_SP2509_MIPI_RAW,
+		{
+			{SensorMCLK, Vol_High, 0},
+			{PDN, Vol_Low, 0},
+			{RST, Vol_Low, 0},
+			{PDN, Vol_High, 0},
+			{DOVDD, Vol_1800, 0},
+			{AVDD, Vol_2800, 0},
+			{DVDD, Vol_1200, 5},
+			{PDN, Vol_Low, 4},			
+			{RST, Vol_High, 5},
+		},
+	},
+#endif
 #if defined(S5K5E8YX_MIPI_RAW)
 	{
 		SENSOR_DRVNAME_S5K5E8YX_MIPI_RAW,

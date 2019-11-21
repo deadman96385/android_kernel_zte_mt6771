@@ -1,0 +1,33 @@
+/*
+ * when you want to delete some nodes or property, modify this dtsi.
+ * some diff between mtk and zte pluto.
+ */
+
+#include "../bat_setting/battery_protect_policy_080509200080.dtsi"
+
+/{
+	hall: hall {
+		compatible = "ah,hall_ic";
+		status="okay";
+		ah,gpio_irq = <&pio 7 0>;
+		interrupt-parent = <&pio>;
+	};
+
+	zte_misc: zte_misc {
+		status="okay";
+		compatible = "zte-misc";
+	};
+
+	/delete-node/ ssusb_ip_sleep;
+};
+
+&lk_charger {
+	/delete-property/ enable_pe_plus;
+};
+
+&charger {
+	/delete-property/ enable_pe_plus;
+	/delete-property/ enable_pe_2;
+	/delete-property/ enable_pe_3;
+	/delete-property/ enable_pe_4;
+};

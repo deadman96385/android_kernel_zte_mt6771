@@ -1,0 +1,5 @@
+/*
+ * when you want to delete some nodes or property, modify this dtsi.
+ * some diff between mtk and zte pluto.
+ */
+

@@ -39,6 +39,11 @@ androidboot.hardware=mt6739 maxcpus=8 \
 firmware_class.path=/vendor/firmware loop.max_part=7";
 	};
 
+	aliases {
+		spi0 = &spi0;
+		spi1 = &spi1;
+		spi2 = &spi2;
+	};
 
 	pmu {
 		compatible = "arm,armv8-pmuv3";
@@ -179,7 +184,7 @@ firmware_class.path=/vendor/firmware loop.max_part=7";
 
 	tkcore {
 		compatible = "trustkernel,tkcore";
-		interrupts = <GIC_SPI 111 IRQ_TYPE_EDGE_RISING>;
+		interrupts = <GIC_SPI 110 IRQ_TYPE_NONE>;
 	};
 	psci {
 		compatible	= "arm,psci-0.2";
@@ -249,14 +254,6 @@ firmware_class.path=/vendor/firmware loop.max_part=7";
 			alignment = <0 0x200000>;
 			alloc-ranges = <0 0x40000000 0 0x38000000>;
 		};
-#ifdef CONFIG_MICROTRUST_TEE_SUPPORT
-		soter-shared-mem {
-			compatible = "microtrust,shared_mem";
-			no-map;
-			size = <0 0x200000>;
-			alloc-ranges = <0 0x40000000 0 0x50000000>;
-		};
-#endif
 	};
 
 	gic: interrupt-controller@0c000000 {
@@ -2361,6 +2358,12 @@ firmware_class.path=/vendor/firmware loop.max_part=7";
 		pwm_data_invert = <0>;
 	};
 
+	/* device for optee linux driver. liuliang */
+	zte_optee: optee@0x1100A000 {
+		compatible = "linaro,optee-tz";
+		method = "smc";
+	};
+	/* device for optee linux driver. liuliang */
 	firmware {
 		android {
 			compatible = "android,firmware";
@@ -2479,6 +2482,13 @@ firmware_class.path=/vendor/firmware loop.max_part=7";
 		compatible = "mediatek,dynamic_options";
 	};
 
+	goodix_fp: fingerprint {
+		compatible = "mediatek,goodix-fp";
+	};
+
+	silead_fp: fingerprint_silead {
+		compatible = "sil,silead_fp-pins";
+	};
 };
 
 #include "cust_mt6739_msdc.dtsi"

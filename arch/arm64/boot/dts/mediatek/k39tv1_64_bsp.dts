@@ -26,6 +26,10 @@
 };
 
 &odm {
+	zte_optee: optee@0x1100A000 {
+		compatible = "linaro,optee-tz";
+		method = "smc";
+	};
 	led0:led@0 {
 		compatible = "mediatek,red";
 		led_mode = <0>;
@@ -526,6 +530,7 @@
 			output-high;
 		};
 	};
+	/*
 	camera_pins_cam_ldo_sub_vcamd_0: cam1@vcamd0 {
 		pins_cmd_dat {
 			pins = <PINMUX_GPIO9__FUNC_GPIO9>;
@@ -539,7 +544,7 @@
 			slew-rate = <1>;
 			output-high;
 		};
-	};
+	};*/
 	camera_pins_cam0_mclk_on: camera_pins_cam0_mclk_on {
 		pins_cmd_dat {
 			pins = <PINMUX_GPIO126__FUNC_CMMCLK0>;
@@ -568,7 +573,7 @@
 	pinctrl-names = "default",
 			"cam0_rst0", "cam0_rst1", "cam0_pnd0", "cam0_pnd1",
 			"cam1_rst0", "cam1_rst1", "cam1_pnd0", "cam1_pnd1",
-			"cam_ldo_sub_vcamd_0", "cam_ldo_sub_vcamd_1",
+		//	"cam_ldo_sub_vcamd_0", "cam_ldo_sub_vcamd_1",
 			"cam0_mclk_on", "cam0_mclk_off",
 			"cam1_mclk_on", "cam1_mclk_off";
 
@@ -581,12 +586,12 @@
 	pinctrl-6 = <&camera_pins_cam1_rst1>;
 	pinctrl-7 = <&camera_pins_cam1_pnd0>;
 	pinctrl-8 = <&camera_pins_cam1_pnd1>;
-	pinctrl-9 = <&camera_pins_cam_ldo_sub_vcamd_0>;
-	pinctrl-10 = <&camera_pins_cam_ldo_sub_vcamd_1>;
-	pinctrl-11 = <&camera_pins_cam0_mclk_on>;
-	pinctrl-12 = <&camera_pins_cam0_mclk_off>;
-	pinctrl-13 = <&camera_pins_cam1_mclk_on>;
-	pinctrl-14 = <&camera_pins_cam1_mclk_off>;
+	//pinctrl-9 = <&camera_pins_cam_ldo_sub_vcamd_0>;
+	//pinctrl-10 = <&camera_pins_cam_ldo_sub_vcamd_1>;
+	pinctrl-9 = <&camera_pins_cam0_mclk_on>;
+	pinctrl-10 = <&camera_pins_cam0_mclk_off>;
+	pinctrl-11 = <&camera_pins_cam1_mclk_on>;
+	pinctrl-12 = <&camera_pins_cam1_mclk_off>;
 	status = "okay";
 
 };

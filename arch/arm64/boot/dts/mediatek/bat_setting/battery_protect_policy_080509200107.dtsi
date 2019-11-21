@@ -1,0 +1,84 @@
+/*
+ * when you want to delete some nodes or property, modify this dtsi.
+ */
+
+/{
+	charger_policy_service {
+		compatible = "zte,charger-policy-service";
+		status="okay";
+		policy,enable = <1>;
+		policy,expired-mode-enable = <1>;
+		policy,retry-times = <10>;
+		policy,timeout-seconds = <64800>;/* 18 hours */
+		policy,max-capacity = <70>;
+		policy,min-capacity = <50>;
+		policy,bms-phy-name = "battery";
+		policy,battery-phy-name = "charger";
+		policy,cas-phy-name = "cas";
+	};
+
+	batt_cap_learn {
+		compatible = "zte,battery-capacity-learning";
+		bcl,enable = <1>;
+		bcl,retry-times = <10>;
+		bcl,timer-period = <100>;/*ms*/
+		bcl,max-start-capacity = <30>;
+		bcl,max-temp-decidegc = <450>;
+		bcl,min-temp-decidegc = <150>;
+		bcl,max-limit-deciperc = <100>;
+		bcl,min-limit-deciperc = <50>;
+		bcl,max-increment-deciperc = <5>;
+		bcl,max-decrement-deciperc = <5>;
+		bcl,bms-phy-name = "charger";
+		bcl,battery-phy-name = "battery";
+		/*bit7: 0: use zte algorithm calc age; 1: use platform algorithm calc age*/
+		/*bit4: enable zte algorithm*/
+		/*bit3: enable platform algorithm*/
+		/*bit0: platform algorithm mode 0: integral mode; 1: delta mode*/
+		bcl,algorithm-select = <0x89>;
+
+		bcl_battery_count0 {
+			bcl,battery-id = <0>;
+			/*"real capacity" = "rated capacity" - "voltage diff" - "topoff diff"*/
+			/*TMB TEST REAL CAPACITY 92%*/
+			bcl,battery-real-capacity = <4530000>;
+			bcl,battery-rated-capacity = <4870000>;
+			bcl,battery-limit-charge-voltage = <4400>;
+			bcl,reduction-50mv-rate = <50>;/*rate * 10*/
+			bcl,age-lose-rate = <1>;/*rate * 10*/
+		};
+	};
+
+	charge_arbitrate_service {
+		compatible = "zte,charge-arbitrate-service";
+		cas,enable = <1>;
+		cas,retry-times = <10>;
+		cas,timeout-seconds = <30>;/*s*/
+		cas,temperature-warm = <430>;
+		cas,temperature-warm-recov = <20>;
+		cas,temperature-cool = <80>;
+		cas,temperature-cool-recov = <20>;
+		cas,normal-topoff = <4>;
+		cas,abnormal-topoff = <8>;
+		cas,max-capacity = <80>;
+		cas,min-capacity = <60>;
+		cas,force-full-aging = <1>;
+		cas,subsidiary-phy-name = "charger";
+		cas,battery-phy-name = "battery";
+		cas,bcl-phy-name = "bcl";
+		cas,fcv-phy = "interface";
+		cas,fcc-phy = "interface";
+		cas,icl-phy = "interface";
+		cas,topoff-phy = "interface";
+		cas,recharge-soc-phy = "interface";
+		cas,recharge-voltage-phy = "interface";
+		cas,voltage-cc-cv-phy = "interface";
+		/* age, fcv, fcc, rech_soc_1st, rech_soc_2st rech_vol_1st, rech_vol_2st **/
+		cas,age-data = <100 4400000 0 0 0 100 200
+				95 4380000 0 0 0 150 250
+				90 4360000 0 0 0 200 300
+				85 4340000 0 0 0 250 350
+				80 4320000 0 0 0 300 400
+				75 4300000 0 0 0 350 450>;
+	};
+};
